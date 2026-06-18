@@ -27,14 +27,16 @@ RUN apk add --no-cache openssl
 WORKDIR /app
 
 # node-linker=hoisted → todas las deps viven en root node_modules
-# (no existe apps/backend/node_modules, por eso fallaba el COPY anterior)
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
 COPY --from=builder /app/apps/backend/prisma ./apps/backend/prisma
 COPY --from=builder /app/apps/backend/package.json ./apps/backend/package.json
 
-WORKDIR /app/apps/backend
+# Asegurar que prisma esté disponible para el comando migrate deploy
+ENV PATH /app/node_modules/.bin:$PATH
+
+WORKDIR /app
 
 EXPOSE 3000
 
-CMD ["node", "dist/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema ./apps/backend/prisma/schema.prisma && node apps/backend/dist/main"]

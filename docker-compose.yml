@@ -22,7 +22,7 @@ services:
       DEFAULT_CLASES_GRACIA: ${DEFAULT_CLASES_GRACIA}
       DEFAULT_DIA_VENCIMIENTO: ${DEFAULT_DIA_VENCIMIENTO}
     # Migraciones corren antes del start (requisito Fullmindtech)
-    command: sh -c "npx prisma migrate deploy && node dist/main"
+    # El comando ahora está en el Dockerfile para mayor consistencia
     networks:
       - dokploy-network
     labels:
