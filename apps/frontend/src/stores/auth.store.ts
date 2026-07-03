@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api } from '@/lib/api';
+import { api, registerAuthRefresh } from '@/lib/api';
 
 interface Usuario {
   id: string;
@@ -47,6 +47,9 @@ function readStoredSession(): Pick<AuthState, 'token' | 'refreshToken' | 'usuari
   return { token: null, refreshToken: null, usuario: null };
 }
 
+/** Promesa de refresh en curso, compartida entre requests concurrentes. */
+let refreshInFlight: Promise<boolean> | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   ...readStoredSession(),
   isLoading: false,
@@ -58,6 +61,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const data = await api<LoginResponse>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
+        skipAuthRefresh: true,
       });
 
       localStorage.setItem('token', data.accessToken);
@@ -87,26 +91,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refresh: async () => {
-    const currentRefresh = get().refreshToken;
-    if (!currentRefresh) return false;
+    // Single-flight: si varios requests 401 disparan refresh a la vez,
+    // comparten la misma promesa en lugar de pegarle N veces al backend.
+    if (refreshInFlight) return refreshInFlight;
+
+    refreshInFlight = (async () => {
+      const currentRefresh = get().refreshToken;
+      if (!currentRefresh) return false;
+
+      try {
+        const data = await api<{ accessToken: string; refreshToken: string }>(
+          '/auth/refresh',
+          {
+            method: 'POST',
+            body: JSON.stringify({ refreshToken: currentRefresh }),
+            skipAuthRefresh: true,
+          },
+        );
+
+        localStorage.setItem('token', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+
+        set({ token: data.accessToken, refreshToken: data.refreshToken });
+        return true;
+      } catch {
+        get().logout();
+        return false;
+      }
+    })();
 
     try {
-      const data = await api<{ accessToken: string; refreshToken: string }>(
-        '/auth/refresh',
-        {
-          method: 'POST',
-          body: JSON.stringify({ refreshToken: currentRefresh }),
-        },
-      );
-
-      localStorage.setItem('token', data.accessToken);
-      localStorage.setItem('refreshToken', data.refreshToken);
-
-      set({ token: data.accessToken, refreshToken: data.refreshToken });
-      return true;
-    } catch {
-      get().logout();
-      return false;
+      return await refreshInFlight;
+    } finally {
+      refreshInFlight = null;
     }
   },
 
@@ -116,3 +133,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set(readStoredSession());
   },
 }));
+
+// Conecta el refresh del store con api(): cualquier request que reciba 401
+// intentará refrescar el token una vez y reintentar automáticamente.
+registerAuthRefresh(async () => {
+  const ok = await useAuthStore.getState().refresh();
+  return ok ? useAuthStore.getState().token : null;
+});
