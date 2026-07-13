@@ -135,4 +135,5 @@ model ConfigSistema {
   tiempoVerde     Int    @default(4)
   tiempoAmarillo  Int    @default(5)
   tiempoRojo      Int    @default(6)
+  codigosComodin  String @default("00000000,99999999")
 }

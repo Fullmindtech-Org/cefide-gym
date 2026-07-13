@@ -21,6 +21,7 @@ export function ConfigPage() {
   const [tiempoVerde, setTiempoVerde] = useState('4');
   const [tiempoAmarillo, setTiempoAmarillo] = useState('5');
   const [tiempoRojo, setTiempoRojo] = useState('6');
+  const [codigosComodin, setCodigosComodin] = useState('00000000,99999999');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -35,6 +36,7 @@ export function ConfigPage() {
       setTiempoVerde(String(config.tiempoVerde));
       setTiempoAmarillo(String(config.tiempoAmarillo));
       setTiempoRojo(String(config.tiempoRojo));
+      setCodigosComodin(config.codigosComodin ?? '');
     }
   }, [config]);
 
@@ -53,6 +55,11 @@ export function ConfigPage() {
         tiempoVerde: parseInt(tiempoVerde, 10),
         tiempoAmarillo: parseInt(tiempoAmarillo, 10),
         tiempoRojo: parseInt(tiempoRojo, 10),
+        codigosComodin: codigosComodin
+          .split(',')
+          .map((c) => c.trim())
+          .filter((c) => c.length > 0)
+          .join(','),
       }),
       token: token!,
     });
@@ -99,6 +106,28 @@ export function ConfigPage() {
               />
               <p className="text-xs text-cefide-muted">
                 Día del mes en que vence el período de pago
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Códigos de acceso ilimitado</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="codigosComodin">Códigos comodín (DNI)</Label>
+              <Input
+                id="codigosComodin"
+                type="text"
+                value={codigosComodin}
+                onChange={(e) => setCodigosComodin(e.target.value)}
+                placeholder="00000000,99999999"
+              />
+              <p className="text-xs text-cefide-muted">
+                DNIs con acceso libre e ilimitado en el molinete. Separar varios
+                con coma. Ej: <code>00000000,99999999</code>
               </p>
             </div>
           </CardContent>

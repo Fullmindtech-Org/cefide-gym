@@ -28,6 +28,7 @@ export class ConfigSistemaController {
       tiempoVerde?: number;
       tiempoAmarillo?: number;
       tiempoRojo?: number;
+      codigosComodin?: string;
     },
   ) {
     return this.configService.update(data);

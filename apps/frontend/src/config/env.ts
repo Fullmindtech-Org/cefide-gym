@@ -30,6 +30,12 @@ const MOLINETE_STATUS_PATH = (import.meta.env.VITE_MOLINETE_STATUS_PATH ?? 'esta
 /** Método HTTP para la apertura (la ESP del demo abre con GET). */
 const MOLINETE_OPEN_METHOD = (import.meta.env.VITE_MOLINETE_OPEN_METHOD ?? 'GET').toUpperCase();
 
+/**
+ * Cantidad de molinetes que maneja el sistema. La vista admin de contingencia
+ * muestra una tarjeta por cada uno (targets `molinete1..N` del proxy local).
+ */
+const MOLINETE_COUNT = Math.max(1, parseInt(import.meta.env.VITE_MOLINETE_COUNT ?? '2', 10) || 2);
+
 export const config = {
   /** Endpoint base del API (incluye el prefijo `/api`). */
   apiBase: `${API_URL}/api`,
@@ -41,4 +47,6 @@ export const config = {
   molineteStatusPath: MOLINETE_STATUS_PATH,
   /** Método HTTP de apertura. */
   molineteOpenMethod: MOLINETE_OPEN_METHOD,
+  /** Cantidad de molinetes del sistema. */
+  molineteCount: MOLINETE_COUNT,
 } as const;

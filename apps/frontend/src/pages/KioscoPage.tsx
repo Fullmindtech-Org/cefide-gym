@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { abrirMolineteLocal } from '@/lib/molinete';
+import { getMolineteId } from '@/lib/molinete-id';
 
 type Estado = 'idle' | 'loading_consultar' | 'seleccion' | 'loading_validar' | 'VERDE' | 'AMARILLO' | 'ROJO' | 'error';
 
@@ -31,11 +32,6 @@ interface AccesoResult {
 // con la config del sistema (GET /acceso/config, en segundos).
 const TIEMPOS_DEFAULT = { VERDE: 4000, AMARILLO: 5000, ROJO: 6000 };
 
-function getMolineteFromUrl(): number {
-  const params = new URLSearchParams(window.location.search);
-  return parseInt(params.get('molinete') || '1', 10);
-}
-
 export function KioscoPage() {
   const [dni, setDni] = useState('');
   const [estado, setEstado] = useState<Estado>('idle');
@@ -45,7 +41,7 @@ export function KioscoPage() {
   const [tiempos, setTiempos] = useState(TIEMPOS_DEFAULT);
   const inputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const molinete = useRef(getMolineteFromUrl());
+  const molinete = useRef(getMolineteId());
 
   const reset = useCallback(() => {
     setDni('');

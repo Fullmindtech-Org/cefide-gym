@@ -57,6 +57,18 @@ export function AdminLayout() {
             <LogOut className="mr-2 h-4 w-4" />
             Salir
           </Button>
+          <p className="text-[11px] text-cefide-muted mt-3">
+            Desarrollado por{' '}
+            <a
+              href="https://fullmindtech.com.ar/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cefide-accent hover:underline"
+            >
+              Fullmindtech
+            </a>
+            ®
+          </p>
         </div>
       </aside>
 
