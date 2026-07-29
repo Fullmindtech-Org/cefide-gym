@@ -1,6 +1,6 @@
 {
   "name": "cefide-gym",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Sistema de control de acceso y gestión de alumnos — Gimnasio CEFIDE",
   "scripts": {
