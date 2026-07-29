@@ -7,8 +7,12 @@ import {
   Param,
   Body,
   Query,
+  BadRequestException,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AlumnosService } from './alumnos.service';
 import { CreateAlumnoDto } from './dto/create-alumno.dto';
 import { UpdateAlumnoDto } from './dto/update-alumno.dto';
@@ -16,6 +20,13 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
 import { CurrentUser, AuthUser } from '../auth/decorators/current-user.decorator';
 import { Rol } from '@prisma/client';
+
+/** Subconjunto de Express.Multer.File que usa el endpoint de importación. */
+interface UploadedCsv {
+  originalname: string;
+  buffer: Buffer;
+  size: number;
+}
 
 @Controller('alumnos')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -49,6 +60,27 @@ export class AlumnosController {
   @Roles(Rol.ADMIN)
   create(@Body() dto: CreateAlumnoDto) {
     return this.alumnosService.create(dto);
+  }
+
+  /**
+   * Importa alumnos desde un CSV (multipart/form-data, campo `file`).
+   * Columnas: dni, nombre, apellido, domicilio, telefono, localidad,
+   * actividad, activo (acepta separador tab, `;` o `,`).
+   * Idempotente: upsert por DNI; crea Actividad + Inscripción si la fila
+   * trae `actividad`.
+   */
+  @Post('import')
+  @Roles(Rol.ADMIN)
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
+  importCsv(@UploadedFile() file?: UploadedCsv) {
+    if (!file || !file.buffer?.length) {
+      throw new BadRequestException(
+        'Falta el archivo CSV (campo multipart "file")',
+      );
+    }
+    return this.alumnosService.importFromCsv(file.buffer);
   }
 
   @Put(':id')

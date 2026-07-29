@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { Frecuencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAlumnoDto } from './dto/create-alumno.dto';
 import { UpdateAlumnoDto } from './dto/update-alumno.dto';
@@ -14,6 +15,20 @@ interface FindAllParams {
   limit?: number;
   /** Si viene, limita los alumnos/inscripciones a las actividades de este profesor. */
   profesorId?: string;
+}
+
+export interface ImportRowError {
+  linea: number;
+  motivo: string;
+}
+
+export interface ImportCsvResult {
+  total: number;
+  creados: number;
+  actualizados: number;
+  inscripcionesCreadas: number;
+  omitidos: number;
+  errores: ImportRowError[];
 }
 
 @Injectable()
@@ -132,6 +147,240 @@ export class AlumnosService {
     return this.prisma.alumno.update({
       where: { id },
       data: { activo: true },
+    });
+  }
+
+  /**
+   * Importa alumnos desde un CSV (formato del parser VERSION8):
+   *   dni, nombre, apellido, domicilio, telefono, localidad, actividad, activo
+   *
+   * Acepta separador tab, `;` o `,` (auto-detectado) y campos entre comillas.
+   * También reconoce las columnas opcionales `clases_total`, `clases_usadas`
+   * y `pagado` (mismo criterio que prisma/migracion/migrate.ts).
+   * `domicilio`, `telefono` y `localidad` son informativos: el modelo Alumno
+   * no los persiste.
+   *
+   * Es idempotente: upsert por DNI. Cada fila crea/actualiza Alumno +
+   * Actividad (por nombre) + Inscripción. No se detiene ante errores.
+   */
+  async importFromCsv(buffer: Buffer): Promise<ImportCsvResult> {
+    const content = this.decodeCsvBuffer(buffer);
+    const rows = this.parseCsv(content);
+
+    const result: ImportCsvResult = {
+      total: rows.length,
+      creados: 0,
+      actualizados: 0,
+      inscripcionesCreadas: 0,
+      omitidos: 0,
+      errores: [],
+    };
+
+    const actividadCache = new Map<string, string>();
+    const dnisSeen = new Map<string, number>();
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const linea = i + 2; // +2 por header + índice base 0
+
+      const dniRaw = row['dni'] || row['documento'] || row['nro_doc'] || '';
+      const nombre = row['nombre'] || '';
+      const apellido = row['apellido'] || '';
+      const activoRaw = row['activo'] || row['estado'] || '1';
+      const actividadNombre = (row['actividad'] || '').trim();
+      const clasesTotal = parseInt(row['clases_total'] || row['clases'] || '0', 10);
+      const clasesUsadas = parseInt(row['clases_usadas'] || '0', 10);
+      const pagadoRaw = row['pagado'] || '';
+
+      // Validar DNI
+      const dni = this.normalizeDni(dniRaw);
+      if (!dni) {
+        result.errores.push({ linea, motivo: `DNI inválido: "${dniRaw}"` });
+        continue;
+      }
+
+      // Duplicados dentro del archivo
+      if (dnisSeen.has(dni)) {
+        result.errores.push({
+          linea,
+          motivo: `DNI duplicado en el archivo (ya importado en línea ${dnisSeen.get(dni)})`,
+        });
+        result.omitidos++;
+        continue;
+      }
+      dnisSeen.set(dni, linea);
+
+      if (!nombre || !apellido) {
+        result.errores.push({ linea, motivo: 'Nombre o apellido vacío' });
+        continue;
+      }
+
+      const activo = ['1', 'true', 'si', 'sí', 's', 'activo'].includes(
+        activoRaw.toLowerCase(),
+      );
+      const pagado = ['1', 'true', 'si', 'sí', 's'].includes(
+        pagadoRaw.toLowerCase(),
+      );
+      const total = isNaN(clasesTotal) ? 0 : clasesTotal;
+      const usadas = isNaN(clasesUsadas) ? 0 : clasesUsadas;
+
+      try {
+        // 1) Alumno (upsert por DNI)
+        const existente = await this.prisma.alumno.findUnique({
+          where: { dni },
+        });
+        const alumno = existente
+          ? await this.prisma.alumno.update({
+              where: { dni },
+              data: { nombre, apellido, activo },
+            })
+          : await this.prisma.alumno.create({
+              data: { dni, nombre, apellido, activo },
+            });
+
+        if (existente) result.actualizados++;
+        else result.creados++;
+
+        // 2) Actividad + Inscripción (solo si la fila trae actividad)
+        if (actividadNombre) {
+          const actividadId = await this.getActividadId(
+            actividadNombre,
+            actividadCache,
+          );
+
+          const inscripcionExistente =
+            await this.prisma.inscripcionActividad.findUnique({
+              where: {
+                alumnoId_actividadId: { alumnoId: alumno.id, actividadId },
+              },
+            });
+
+          if (!inscripcionExistente) {
+            await this.prisma.inscripcionActividad.create({
+              data: {
+                alumnoId: alumno.id,
+                actividadId,
+                frecuencia: this.frecuenciaDesdeClases(total),
+                clasesTotal: total,
+                clasesUsadas: usadas,
+                pagado,
+                fechaPago: pagado ? new Date() : null,
+              },
+            });
+            result.inscripcionesCreadas++;
+          }
+        }
+      } catch (err) {
+        result.errores.push({
+          linea,
+          motivo: `Error DB: ${(err as Error).message}`,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /** Upsert idempotente de Actividad por nombre, con cache en memoria. */
+  private async getActividadId(
+    nombre: string,
+    cache: Map<string, string>,
+  ): Promise<string> {
+    const cached = cache.get(nombre);
+    if (cached) return cached;
+    const act = await this.prisma.actividad.upsert({
+      where: { nombre },
+      update: {},
+      create: { nombre },
+    });
+    cache.set(nombre, act.id);
+    return act.id;
+  }
+
+  /** Infiere la frecuencia a partir del total de clases (igual que migrate.ts). */
+  private frecuenciaDesdeClases(clasesTotal: number): Frecuencia {
+    if (clasesTotal >= 30) return Frecuencia.LIBRE;
+    if (clasesTotal >= 13) return Frecuencia.TRES_VECES;
+    if (clasesTotal >= 9) return Frecuencia.DOS_VECES;
+    return Frecuencia.UNA_VEZ;
+  }
+
+  /** Normaliza DNI: remueve puntos, guiones y espacios; exige 7-8 dígitos. */
+  private normalizeDni(raw: string): string | null {
+    const cleaned = raw.replace(/[.\-\s]/g, '');
+    if (!/^\d{7,8}$/.test(cleaned)) return null;
+    return cleaned;
+  }
+
+  /** Decodifica el buffer como UTF-8; si hay caracteres inválidos usa latin1. */
+  private decodeCsvBuffer(buffer: Buffer): string {
+    const utf8 = buffer.toString('utf-8');
+    return utf8.includes('�') ? buffer.toString('latin1') : utf8;
+  }
+
+  /**
+   * Parsea CSV con soporte de campos entre comillas.
+   * Auto-detecta el separador (tab, `;` o `,`) mirando la primera línea.
+   */
+  private parseCsv(content: string): Record<string, string>[] {
+    const firstLine = content.split(/\r?\n/, 1)[0] ?? '';
+    const sep = firstLine.includes('\t')
+      ? '\t'
+      : firstLine.includes(';')
+        ? ';'
+        : ',';
+
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = '';
+    let inQuotes = false;
+
+    const pushField = () => {
+      row.push(field);
+      field = '';
+    };
+    const pushRow = () => {
+      if (row.length > 1 || (row[0] ?? '').trim()) rows.push(row);
+      row = [];
+    };
+
+    for (let i = 0; i < content.length; i++) {
+      const c = content[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (content[i + 1] === '"') {
+            field += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          field += c;
+        }
+      } else if (c === '"') {
+        inQuotes = true;
+      } else if (c === sep) {
+        pushField();
+      } else if (c === '\n' || c === '\r') {
+        if (c === '\r' && content[i + 1] === '\n') i++;
+        pushField();
+        pushRow();
+      } else {
+        field += c;
+      }
+    }
+    pushField();
+    pushRow();
+
+    if (rows.length < 2) return [];
+
+    const headers = rows[0].map((h) => h.trim().toLowerCase());
+    return rows.slice(1).map((r) => {
+      const obj: Record<string, string> = {};
+      headers.forEach((h, i) => {
+        obj[h] = (r[i] ?? '').trim();
+      });
+      return obj;
     });
   }
 
