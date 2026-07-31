@@ -46,6 +46,8 @@ export class AlumnosService {
         { dni: { contains: search } },
         { nombre: { contains: search, mode: 'insensitive' } },
         { apellido: { contains: search, mode: 'insensitive' } },
+        { telefono: { contains: search, mode: 'insensitive' } },
+        { direccion: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -151,14 +153,28 @@ export class AlumnosService {
   }
 
   /**
+   * Borrado en cascada: elimina el alumno junto a todo su historial vinculado
+   * (pagos, ingresos e inscripciones) en una transacción. Irreversible.
+   */
+  async remove(id: string) {
+    await this.findOne(id);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.pago.deleteMany({ where: { alumnoId: id } });
+      await tx.ingreso.deleteMany({ where: { alumnoId: id } });
+      await tx.inscripcionActividad.deleteMany({ where: { alumnoId: id } });
+      return tx.alumno.delete({ where: { id } });
+    });
+  }
+
+  /**
    * Importa alumnos desde un CSV (formato del parser VERSION8):
    *   dni, nombre, apellido, domicilio, telefono, localidad, actividad, activo
    *
    * Acepta separador tab, `;` o `,` (auto-detectado) y campos entre comillas.
    * También reconoce las columnas opcionales `clases_total`, `clases_usadas`
    * y `pagado` (mismo criterio que prisma/migracion/migrate.ts).
-   * `domicilio`, `telefono` y `localidad` son informativos: el modelo Alumno
-   * no los persiste.
+   * `domicilio`/`direccion` y `telefono` se persisten en el Alumno; `localidad`
+   * es informativa (el modelo no la guarda).
    *
    * Es idempotente: upsert por DNI. Cada fila crea/actualiza Alumno +
    * Actividad (por nombre) + Inscripción. No se detiene ante errores.
@@ -187,6 +203,11 @@ export class AlumnosService {
       const nombre = row['nombre'] || '';
       const apellido = row['apellido'] || '';
       const activoRaw = row['activo'] || row['estado'] || '1';
+      const telefono =
+        (row['telefono'] || row['tel'] || row['celular'] || '').trim() || null;
+      const direccion =
+        (row['domicilio'] || row['direccion'] || row['dirección'] || '').trim() ||
+        null;
       const actividadNombre = (row['actividad'] || '').trim();
       const clasesTotal = parseInt(row['clases_total'] || row['clases'] || '0', 10);
       const clasesUsadas = parseInt(row['clases_usadas'] || '0', 10);
@@ -232,10 +253,10 @@ export class AlumnosService {
         const alumno = existente
           ? await this.prisma.alumno.update({
               where: { dni },
-              data: { nombre, apellido, activo },
+              data: { nombre, apellido, activo, telefono, direccion },
             })
           : await this.prisma.alumno.create({
-              data: { dni, nombre, apellido, activo },
+              data: { dni, nombre, apellido, activo, telefono, direccion },
             });
 
         if (existente) result.actualizados++;

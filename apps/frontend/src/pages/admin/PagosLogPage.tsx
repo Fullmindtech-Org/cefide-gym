@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useApiGet } from '@/hooks/use-api';
+import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth.store';
 import type { PaginatedResponse } from '@/types';
 
 interface Pago {
@@ -19,6 +21,7 @@ interface Pago {
 }
 
 export function PagosLogPage() {
+  const token = useAuthStore((s) => s.token);
   const [search, setSearch] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
@@ -31,9 +34,19 @@ export function PagosLogPage() {
   params.set('page', String(page));
   params.set('limit', '20');
 
-  const { data } = useApiGet<PaginatedResponse<Pago>>(
+  const { data, mutate } = useApiGet<PaginatedResponse<Pago>>(
     `/reportes/pagos?${params.toString()}`,
   );
+
+  async function eliminarPago(pago: Pago) {
+    const ok = window.confirm(
+      '¿Eliminar este registro del historial de pagos?\n\n' +
+        'Solo borra el registro del log; no modifica la inscripción. Esta acción no se puede deshacer.',
+    );
+    if (!ok) return;
+    await api(`/reportes/pagos/${pago.id}`, { method: 'DELETE', token: token! });
+    mutate();
+  }
 
   function formatFecha(iso: string) {
     return new Date(iso).toLocaleString('es-AR', {
@@ -53,7 +66,7 @@ export function PagosLogPage() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cefide-muted" />
           <Input
-            placeholder="Buscar por DNI, nombre o apellido..."
+            placeholder="Buscar por DNI, nombre, apellido, teléfono o dirección..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pl-9"
@@ -83,6 +96,7 @@ export function PagosLogPage() {
               <th className="px-4 py-3 text-left font-medium text-cefide-muted">DNI</th>
               <th className="px-4 py-3 text-left font-medium text-cefide-muted">Alumno</th>
               <th className="px-4 py-3 text-center font-medium text-cefide-muted">Tipo</th>
+              <th className="px-4 py-3 text-right font-medium text-cefide-muted">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -101,11 +115,21 @@ export function PagosLogPage() {
                     <Badge variant="destructive">Anulación</Badge>
                   )}
                 </td>
+                <td className="px-4 py-3 text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => eliminarPago(pago)}
+                    title="Eliminar registro"
+                  >
+                    <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
+                  </Button>
+                </td>
               </tr>
             ))}
             {data?.data.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-cefide-muted">
+                <td colSpan={5} className="px-4 py-8 text-center text-cefide-muted">
                   No se encontraron pagos
                 </td>
               </tr>

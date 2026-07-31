@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,19 @@ export function ActividadesPage() {
     }
   }
 
+  async function eliminarActividad(a: Actividad) {
+    const inscriptos = a._count?.inscripciones ?? 0;
+    const aviso = inscriptos
+      ? `\n\nTiene ${inscriptos} inscripción${inscriptos !== 1 ? 'es' : ''}: se borran junto a sus pagos e ingresos.`
+      : '';
+    const ok = window.confirm(
+      `¿Eliminar la actividad "${a.nombre}"?${aviso}\n\nEsta acción no se puede deshacer.`,
+    );
+    if (!ok) return;
+    await api(`/actividades/${a.id}`, { method: 'DELETE', token: token! });
+    mutate();
+  }
+
   async function toggleActivo(a: Actividad) {
     await api(`/actividades/${a.id}`, {
       method: 'PATCH',
@@ -115,6 +128,14 @@ export function ActividadesPage() {
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => toggleActivo(a)}>
                       {a.activo ? 'Desactivar' : 'Activar'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => eliminarActividad(a)}
+                      title="Eliminar actividad"
+                    >
+                      <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
                     </Button>
                   </div>
                 </td>

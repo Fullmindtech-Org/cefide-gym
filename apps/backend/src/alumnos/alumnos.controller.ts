@@ -4,6 +4,7 @@ import {
   Post,
   Put,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -99,5 +100,11 @@ export class AlumnosController {
   @Roles(Rol.ADMIN)
   activate(@Param('id') id: string) {
     return this.alumnosService.activate(id);
+  }
+
+  @Delete(':id')
+  @Roles(Rol.ADMIN)
+  remove(@Param('id') id: string) {
+    return this.alumnosService.remove(id);
   }
 }

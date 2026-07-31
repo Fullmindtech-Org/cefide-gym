@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Plus, UserX, UserCheck } from 'lucide-react';
+import { Search, Plus, UserX, UserCheck, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +43,16 @@ export function AlumnosPage() {
     mutate();
   }
 
+  async function eliminarAlumno(alumno: Alumno) {
+    const ok = window.confirm(
+      `¿Eliminar a ${alumno.apellido}, ${alumno.nombre} (DNI ${alumno.dni})?\n\n` +
+        'Se borran también sus inscripciones, pagos e ingresos. Esta acción no se puede deshacer.',
+    );
+    if (!ok) return;
+    await api(`/alumnos/${alumno.id}`, { method: 'DELETE', token: token! });
+    mutate();
+  }
+
   function openNew() {
     setEditAlumno(null);
     setDialogOpen(true);
@@ -67,7 +77,7 @@ export function AlumnosPage() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cefide-muted" />
           <Input
-            placeholder="Buscar por DNI, nombre o apellido..."
+            placeholder="Buscar por DNI, nombre, apellido, teléfono o dirección..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -100,6 +110,7 @@ export function AlumnosPage() {
             <tr className="border-b border-cefide-border">
               <th className="px-4 py-3 text-left font-medium text-cefide-muted">DNI</th>
               <th className="px-4 py-3 text-left font-medium text-cefide-muted">Nombre</th>
+              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Teléfono</th>
               <th className="px-4 py-3 text-left font-medium text-cefide-muted">Estado</th>
               <th className="px-4 py-3 text-right font-medium text-cefide-muted">Acciones</th>
             </tr>
@@ -113,6 +124,9 @@ export function AlumnosPage() {
                 <td className="px-4 py-3 font-mono">{alumno.dni}</td>
                 <td className="px-4 py-3">
                   {alumno.apellido}, {alumno.nombre}
+                </td>
+                <td className="px-4 py-3 text-cefide-muted">
+                  {alumno.telefono || '—'}
                 </td>
                 <td className="px-4 py-3">
                   <Badge variant={alumno.activo ? 'success' : 'muted'}>
@@ -140,13 +154,21 @@ export function AlumnosPage() {
                         <UserCheck className="h-4 w-4 text-cefide-success" />
                       )}
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => eliminarAlumno(alumno)}
+                      title="Eliminar alumno"
+                    >
+                      <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
+                    </Button>
                   </div>
                 </td>
               </tr>
             ))}
             {data?.data.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-cefide-muted">
+                <td colSpan={5} className="px-4 py-8 text-center text-cefide-muted">
                   No se encontraron alumnos
                 </td>
               </tr>

@@ -72,24 +72,16 @@ function MolineteCard({ num }: { num: number }) {
             <Badge variant={status.online === false ? 'warning' : 'success'}>
               {status.online === false ? 'ESP sin responder' : 'Conectado'}
             </Badge>
-          ) : (
-            <Badge variant="destructive">Desconectado</Badge>
-          )
+          ) : null
         ) : (
           <Badge variant="muted">Cargando...</Badge>
         )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {status && (
+        {status?.ok && (
           <div className="text-sm text-cefide-muted space-y-1">
-            {status.ok ? (
-              <>
-                <p>Estado ESP: {status.estado ?? '—'}</p>
-                <p>Alcanzable: {status.online === false ? 'no' : 'sí'}</p>
-              </>
-            ) : (
-              <p className="text-cefide-accent-alt">{status.error}</p>
-            )}
+            <p>Estado ESP: {status.estado ?? '—'}</p>
+            <p>Alcanzable: {status.online === false ? 'no' : 'sí'}</p>
           </div>
         )}
 

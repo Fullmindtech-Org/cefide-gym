@@ -45,6 +45,8 @@ model Alumno {
   dni           String                 @unique
   nombre        String
   apellido      String
+  telefono      String?
+  direccion     String?
   activo        Boolean                @default(true)
   inscripciones InscripcionActividad[]
   ingresos      Ingreso[]

@@ -1,6 +1,8 @@
 import {
   Controller,
   Get,
+  Delete,
+  Param,
   Query,
   Res,
   UseGuards,
@@ -64,6 +66,8 @@ export class ReportesController {
           { dni: { contains: search } },
           { nombre: { contains: search, mode: 'insensitive' } },
           { apellido: { contains: search, mode: 'insensitive' } },
+          { telefono: { contains: search, mode: 'insensitive' } },
+          { direccion: { contains: search, mode: 'insensitive' } },
         ],
       };
     }
@@ -98,5 +102,13 @@ export class ReportesController {
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
     };
+  }
+
+  /** Borra un registro del historial de pagos (solo log; no afecta la inscripción). */
+  @Delete('pagos/:id')
+  @Roles(Rol.ADMIN)
+  async deletePago(@Param('id') id: string) {
+    await this.prisma.pago.delete({ where: { id } });
+    return { ok: true };
   }
 }
