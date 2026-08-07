@@ -13,6 +13,7 @@ import { InscripcionesService } from './inscripciones.service';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
 import { PagarInscripcionDto } from './dto/pagar-inscripcion.dto';
 import { AgregarClasesDto } from './dto/agregar-clases.dto';
+import { AjustarClasesDto } from './dto/ajustar-clases.dto';
 import { CambiarFrecuenciaDto } from './dto/cambiar-frecuencia.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
@@ -59,6 +60,12 @@ export class InscripcionesController {
   @Roles(Rol.ADMIN)
   agregarClasesSueltas(@Param('id') id: string, @Body() dto: AgregarClasesDto) {
     return this.inscripcionesService.agregarClasesSueltas(id, dto.clases);
+  }
+
+  @Patch(':id/clases')
+  @Roles(Rol.ADMIN)
+  ajustarClases(@Param('id') id: string, @Body() dto: AjustarClasesDto) {
+    return this.inscripcionesService.ajustarClases(id, dto);
   }
 
   @Patch(':id/frecuencia')

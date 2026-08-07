@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { EstadoIngreso } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
-const DNIS_COMODIN = ['00000000', '99999999'];
+const DNIS_COMODIN_DEFAULT = ['00000000', '99999999'];
 
 export interface ResultadoAcceso {
   estado: EstadoIngreso;
@@ -40,6 +40,18 @@ export interface ConsultaAcceso {
 export class AccesoService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** DNIs comodín (acceso ilimitado) configurables desde el panel. */
+  private async getCodigosComodin(): Promise<string[]> {
+    const config = await this.prisma.configSistema.findUnique({ where: { id: 'global' } });
+    const raw = config?.codigosComodin;
+    if (!raw) return DNIS_COMODIN_DEFAULT;
+    const codigos = raw
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c) => c.length > 0);
+    return codigos.length > 0 ? codigos : DNIS_COMODIN_DEFAULT;
+  }
+
   /** Config pública para el kiosco (sin auth): tiempos de pantalla por estado, en segundos. */
   async getKioscoConfig() {
     const config = await this.prisma.configSistema.findUnique({ where: { id: 'global' } });
@@ -51,7 +63,7 @@ export class AccesoService {
   }
 
   async consultarAcceso(dni: string): Promise<ConsultaAcceso> {
-    if (DNIS_COMODIN.includes(dni)) {
+    if ((await this.getCodigosComodin()).includes(dni)) {
       return {
         alumno: { id: 'comodin', nombre: 'ACCESO', apellido: 'AUTORIZADO', dni },
         activo: true,
@@ -88,7 +100,7 @@ export class AccesoService {
   }
 
   async validarAcceso(dni: string, inscripcionId: string | null): Promise<ResultadoAcceso> {
-    if (DNIS_COMODIN.includes(dni)) {
+    if ((await this.getCodigosComodin()).includes(dni)) {
       return {
         estado: EstadoIngreso.VERDE,
         alumno: { nombre: 'ACCESO', apellido: 'AUTORIZADO', dni },
@@ -212,7 +224,7 @@ export class AccesoService {
     const alumno = await this.prisma.alumno.findUnique({ where: { dni } });
     if (!alumno) return;
 
-    if (DNIS_COMODIN.includes(dni)) {
+    if ((await this.getCodigosComodin()).includes(dni)) {
       return this.prisma.ingreso.create({
         data: { alumnoId: alumno.id, estado, molinete },
       });

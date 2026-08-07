@@ -18,6 +18,14 @@ export class UpdateAlumnoDto {
   apellido?: string;
 
   @IsOptional()
+  @IsString()
+  telefono?: string;
+
+  @IsOptional()
+  @IsString()
+  direccion?: string;
+
+  @IsOptional()
   @IsBoolean()
   activo?: boolean;
 }

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -47,5 +48,11 @@ export class ActividadesController {
   @Roles(Rol.ADMIN)
   update(@Param('id') id: string, @Body() dto: UpdateActividadDto) {
     return this.actividadesService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(Rol.ADMIN)
+  remove(@Param('id') id: string) {
+    return this.actividadesService.remove(id);
   }
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Plus, DollarSign, Check, X } from 'lucide-react';
+import { Search, Plus, DollarSign, Check, X, Trash2, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +42,12 @@ export function ClasesPagosPage() {
   // Clases sueltas dialog
   const [clasesDialog, setClasesDialog] = useState<string | null>(null);
   const [clasesValue, setClasesValue] = useState('');
+
+  // Editar clases (ajuste absoluto: usadas / total)
+  const [editClases, setEditClases] = useState<InscripcionFlat | null>(null);
+  const [editUsadas, setEditUsadas] = useState('');
+  const [editTotal, setEditTotal] = useState('');
+  const [editError, setEditError] = useState('');
 
   // Nueva inscripción dialog
   const [nuevaDialog, setNuevaDialog] = useState(false);
@@ -105,6 +111,48 @@ export function ClasesPagosPage() {
     mutate();
   }
 
+  function abrirEditarClases(ins: InscripcionFlat) {
+    setEditClases(ins);
+    setEditUsadas(String(ins.clasesUsadas));
+    setEditTotal(String(ins.clasesTotal));
+    setEditError('');
+  }
+
+  async function handleGuardarClases() {
+    if (!editClases) return;
+    const usadas = parseInt(editUsadas, 10);
+    const total = parseInt(editTotal, 10);
+    if (isNaN(usadas) || isNaN(total) || usadas < 0 || total < 0) {
+      setEditError('Valores inválidos');
+      return;
+    }
+    if (usadas > total) {
+      setEditError('Las clases usadas no pueden superar el total');
+      return;
+    }
+    try {
+      await api(`/inscripciones/${editClases.id}/clases`, {
+        method: 'PATCH',
+        body: JSON.stringify({ clasesUsadas: usadas, clasesTotal: total }),
+        token: token!,
+      });
+      setEditClases(null);
+      mutate();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Error al guardar');
+    }
+  }
+
+  async function handleEliminarInscripcion(ins: InscripcionFlat) {
+    const ok = window.confirm(
+      `¿Eliminar la inscripción de ${ins.alumno.apellido}, ${ins.alumno.nombre} en "${ins.actividad.nombre}"?\n\n` +
+        'Se borran también sus pagos e ingresos de esta actividad. Esta acción no se puede deshacer.',
+    );
+    if (!ok) return;
+    await api(`/inscripciones/${ins.id}`, { method: 'DELETE', token: token! });
+    mutate();
+  }
+
   async function handleNuevaInscripcion() {
     if (!nuevaForm.alumnoId || !nuevaForm.actividadId) return;
 
@@ -138,7 +186,7 @@ export function ClasesPagosPage() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cefide-muted" />
           <Input
-            placeholder="Buscar por DNI, nombre o apellido..."
+            placeholder="Buscar por DNI, nombre, apellido, teléfono o dirección..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pl-9"
@@ -200,11 +248,27 @@ export function ClasesPagosPage() {
                     </Button>
                     <Button
                       variant="ghost"
+                      size="icon"
+                      onClick={() => abrirEditarClases(ins)}
+                      title="Editar clases (usadas / total)"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
                       size="sm"
                       onClick={() => handleTogglePago(ins)}
                     >
                       <DollarSign className="mr-1 h-3 w-3" />
                       {ins.pagado ? 'Anular' : 'Cobrar'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEliminarInscripcion(ins)}
+                      title="Eliminar inscripción"
+                    >
+                      <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
                     </Button>
                   </div>
                 </td>
@@ -258,6 +322,51 @@ export function ClasesPagosPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Editar clases dialog (ajuste absoluto usadas / total) */}
+      <Dialog open={!!editClases} onOpenChange={(v) => !v && setEditClases(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar clases</DialogTitle>
+          </DialogHeader>
+          {editClases && (
+            <div className="space-y-4">
+              <p className="text-sm text-cefide-muted">
+                {editClases.alumno.apellido}, {editClases.alumno.nombre} — {editClases.actividad.nombre}
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Clases usadas</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={editUsadas}
+                    onChange={(e) => setEditUsadas(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Clases total</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={editTotal}
+                    onChange={(e) => setEditTotal(e.target.value)}
+                  />
+                </div>
+              </div>
+              {editError && <p className="text-sm text-cefide-accent-alt">{editError}</p>}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setEditClases(null)}>Cancelar</Button>
+                <Button onClick={handleGuardarClases}>
+                  <Check className="mr-1 h-4 w-4" />
+                  Guardar
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

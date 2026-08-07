@@ -34,6 +34,8 @@ export interface Alumno {
   dni: string;
   nombre: string;
   apellido: string;
+  telefono?: string | null;
+  direccion?: string | null;
   activo: boolean;
   inscripciones?: InscripcionActividad[];
   creadoEn: string;
@@ -61,6 +63,7 @@ export interface ConfigSistema {
   tiempoVerde: number;
   tiempoAmarillo: number;
   tiempoRojo: number;
+  codigosComodin: string;
 }
 
 export interface PaginatedResponse<T> {

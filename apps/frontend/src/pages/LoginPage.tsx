@@ -30,7 +30,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="relative flex min-h-screen items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold text-cefide-accent">
@@ -87,6 +87,18 @@ export function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      <p className="absolute bottom-4 text-xs text-cefide-muted">
+        Desarrollado por{' '}
+        <a
+          href="https://fullmindtech.com.ar/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cefide-accent hover:underline"
+        >
+          Fullmindtech
+        </a>
+        ®
+      </p>
     </div>
   );
 }

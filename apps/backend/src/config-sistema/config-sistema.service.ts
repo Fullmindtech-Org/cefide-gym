@@ -11,6 +11,7 @@ interface UpdateConfigDto {
   tiempoVerde?: number;
   tiempoAmarillo?: number;
   tiempoRojo?: number;
+  codigosComodin?: string;
 }
 
 @Injectable()
@@ -35,6 +36,7 @@ export class ConfigSistemaService {
           tiempoVerde: 4,
           tiempoAmarillo: 5,
           tiempoRojo: 6,
+          codigosComodin: '00000000,99999999',
         },
       });
     }

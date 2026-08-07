@@ -25,6 +25,8 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
   const [dni, setDni] = useState('');
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [direccion, setDireccion] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -35,10 +37,14 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
       setDni(alumno.dni);
       setNombre(alumno.nombre);
       setApellido(alumno.apellido);
+      setTelefono(alumno.telefono ?? '');
+      setDireccion(alumno.direccion ?? '');
     } else {
       setDni('');
       setNombre('');
       setApellido('');
+      setTelefono('');
+      setDireccion('');
     }
     setError('');
   }, [alumno, open]);
@@ -48,7 +54,13 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
     setSaving(true);
     setError('');
 
-    const body = { dni, nombre, apellido };
+    const body = {
+      dni,
+      nombre,
+      apellido,
+      telefono: telefono.trim(),
+      direccion: direccion.trim(),
+    };
 
     try {
       if (isEdit) {
@@ -111,6 +123,27 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
                 onChange={(e) => setApellido(e.target.value)}
                 required
                 minLength={2}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="telefono">Teléfono</Label>
+              <Input
+                id="telefono"
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+                placeholder="Opcional"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="direccion">Dirección</Label>
+              <Input
+                id="direccion"
+                value={direccion}
+                onChange={(e) => setDireccion(e.target.value)}
+                placeholder="Opcional"
               />
             </div>
           </div>

@@ -1,13 +1,11 @@
 import {
   Controller,
   Post,
-  Get,
   Body,
   Param,
   UseGuards,
   ParseIntPipe,
 } from '@nestjs/common';
-import { MolineteService } from './molinete.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
 import { Rol } from '@prisma/client';
@@ -18,10 +16,7 @@ import { EstadoIngreso } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Rol.ADMIN)
 export class MolineteController {
-  constructor(
-    private readonly molineteService: MolineteService,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * POST /api/molinete/:num/contingencia
@@ -60,14 +55,5 @@ export class MolineteController {
       molinete: num,
       motivo: body.motivo || 'Apertura de contingencia',
     };
-  }
-
-  /**
-   * GET /api/molinete/:num/status
-   * Estado del driver de un molinete
-   */
-  @Get(':num/status')
-  status(@Param('num', ParseIntPipe) num: number) {
-    return this.molineteService.status(num);
   }
 }

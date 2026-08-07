@@ -50,4 +50,34 @@ export class ActividadesService {
     }
     return this.prisma.actividad.update({ where: { id }, data: dto });
   }
+
+  /**
+   * Borrado en cascada: elimina la actividad junto a sus inscripciones y el
+   * historial (pagos/ingresos) ligado a ellas, en una transacción. Irreversible.
+   * La relación con profesores se desvincula (no borra profesores).
+   */
+  async remove(id: string) {
+    await this.findOne(id);
+    return this.prisma.$transaction(async (tx) => {
+      const inscripciones = await tx.inscripcionActividad.findMany({
+        where: { actividadId: id },
+        select: { id: true },
+      });
+      const inscripcionIds = inscripciones.map((i) => i.id);
+
+      if (inscripcionIds.length) {
+        await tx.pago.deleteMany({
+          where: { inscripcionId: { in: inscripcionIds } },
+        });
+        await tx.ingreso.deleteMany({
+          where: { inscripcionId: { in: inscripcionIds } },
+        });
+        await tx.inscripcionActividad.deleteMany({
+          where: { actividadId: id },
+        });
+      }
+
+      return tx.actividad.delete({ where: { id } });
+    });
+  }
 }

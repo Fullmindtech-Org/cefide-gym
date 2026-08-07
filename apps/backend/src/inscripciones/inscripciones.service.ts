@@ -43,6 +43,8 @@ export class InscripcionesService {
           { dni: { contains: search } },
           { nombre: { contains: search, mode: 'insensitive' } },
           { apellido: { contains: search, mode: 'insensitive' } },
+          { telefono: { contains: search, mode: 'insensitive' } },
+          { direccion: { contains: search, mode: 'insensitive' } },
         ],
       };
     }
@@ -128,6 +130,35 @@ export class InscripcionesService {
     });
   }
 
+  /**
+   * Ajuste manual de clases (ej. descontar/agregar una clase, corregir el
+   * total). Setea los valores absolutos que vengan; valida rangos.
+   */
+  async ajustarClases(
+    id: string,
+    data: { clasesUsadas?: number; clasesTotal?: number },
+  ) {
+    const inscripcion = await this.prisma.inscripcionActividad.findUnique({
+      where: { id },
+    });
+    if (!inscripcion) throw new NotFoundException('Inscripción no encontrada');
+
+    const clasesTotal = data.clasesTotal ?? inscripcion.clasesTotal;
+    const clasesUsadas = data.clasesUsadas ?? inscripcion.clasesUsadas;
+
+    if (clasesUsadas > clasesTotal) {
+      throw new ConflictException(
+        'Las clases usadas no pueden superar el total',
+      );
+    }
+
+    return this.prisma.inscripcionActividad.update({
+      where: { id },
+      data: { clasesTotal, clasesUsadas },
+      include: { actividad: true },
+    });
+  }
+
   async cambiarFrecuencia(id: string, frecuencia: Frecuencia) {
     const inscripcion = await this.prisma.inscripcionActividad.findUnique({ where: { id } });
     if (!inscripcion) throw new NotFoundException('Inscripción no encontrada');
@@ -141,10 +172,18 @@ export class InscripcionesService {
     });
   }
 
+  /**
+   * Borrado en cascada: elimina la inscripción y el historial (pagos/ingresos)
+   * ligado a ella, en una transacción. Irreversible.
+   */
   async remove(id: string) {
     const inscripcion = await this.prisma.inscripcionActividad.findUnique({ where: { id } });
     if (!inscripcion) throw new NotFoundException('Inscripción no encontrada');
-    return this.prisma.inscripcionActividad.delete({ where: { id } });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.pago.deleteMany({ where: { inscripcionId: id } });
+      await tx.ingreso.deleteMany({ where: { inscripcionId: id } });
+      return tx.inscripcionActividad.delete({ where: { id } });
+    });
   }
 
   async renovacionMensual() {

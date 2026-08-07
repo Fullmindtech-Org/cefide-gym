@@ -15,6 +15,14 @@ export class CreateAlumnoDto {
   apellido: string;
 
   @IsOptional()
+  @IsString()
+  telefono?: string;
+
+  @IsOptional()
+  @IsString()
+  direccion?: string;
+
+  @IsOptional()
   @IsBoolean()
   activo?: boolean;
 }
