@@ -5,6 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -25,6 +31,7 @@ export function AlumnosPage() {
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editAlumno, setEditAlumno] = useState<Alumno | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Alumno | null>(null);
 
   const params = new URLSearchParams();
   if (debouncedSearch) params.set('search', debouncedSearch);
@@ -45,13 +52,10 @@ export function AlumnosPage() {
     mutate();
   }
 
-  async function eliminarAlumno(alumno: Alumno) {
-    const ok = window.confirm(
-      `¿Eliminar a ${alumno.apellido}, ${alumno.nombre} (DNI ${alumno.dni})?\n\n` +
-        'Se borran también sus inscripciones, pagos e ingresos. Esta acción no se puede deshacer.',
-    );
-    if (!ok) return;
-    await api(`/alumnos/${alumno.id}`, { method: 'DELETE', token: token! });
+  async function doEliminarAlumno() {
+    if (!confirmDelete) return;
+    await api(`/alumnos/${confirmDelete.id}`, { method: 'DELETE', token: token! });
+    setConfirmDelete(null);
     mutate();
   }
 
@@ -159,7 +163,7 @@ export function AlumnosPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => eliminarAlumno(alumno)}
+                      onClick={() => setConfirmDelete(alumno)}
                       title="Eliminar alumno"
                     >
                       <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
@@ -214,6 +218,28 @@ export function AlumnosPage() {
         onSuccess={() => mutate()}
         alumno={editAlumno}
       />
+
+      <Dialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar alumno</DialogTitle>
+          </DialogHeader>
+          {confirmDelete && (
+            <div className="space-y-4">
+              <p className="text-sm">
+                ¿Eliminar a <strong>{confirmDelete.apellido}, {confirmDelete.nombre}</strong> (DNI {confirmDelete.dni})?
+              </p>
+              <p className="text-xs text-cefide-muted">
+                Se borran también sus inscripciones, pagos e ingresos. Esta acción no se puede deshacer.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
+                <Button variant="destructive" onClick={doEliminarAlumno}>Eliminar</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

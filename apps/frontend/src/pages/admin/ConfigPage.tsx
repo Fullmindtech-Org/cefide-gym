@@ -107,6 +107,9 @@ export function ConfigPage() {
               <p className="text-xs text-cefide-muted">
                 Día del mes en que vence el período de pago
               </p>
+              <p className="text-xs text-amber-500">
+                ⚠ Este valor se guarda pero aún no afecta el control de acceso. La gracia se calcula por ingresos del mes calendario, no por fecha límite.
+              </p>
             </div>
           </CardContent>
         </Card>

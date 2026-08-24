@@ -8,6 +8,8 @@ export interface JwtPayload {
   sub: string;
   email: string;
   rol: string;
+  type: 'access' | 'refresh';
+  tokenVersion: number;
 }
 
 @Injectable()
@@ -24,6 +26,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    // A1: solo access tokens valen en endpoints protegidos.
+    if (payload.type !== 'access') {
+      throw new UnauthorizedException('Tipo de token inválido');
+    }
+
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: payload.sub },
       include: { profesor: true },
@@ -31,6 +38,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (!usuario) {
       throw new UnauthorizedException();
+    }
+
+    // C3: tokenVersion revocado por logout o cambio de contraseña.
+    if (payload.tokenVersion !== usuario.tokenVersion) {
+      throw new UnauthorizedException('Sesión revocada');
     }
 
     return {

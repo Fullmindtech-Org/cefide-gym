@@ -44,21 +44,23 @@ export class AdminSeedService implements OnApplicationBootstrap {
       return;
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const existing = await this.prisma.usuario.findUnique({ where: { email } });
 
-    const usuario = await this.prisma.usuario.upsert({
-      where: { email },
-      update: {
-        password: passwordHash,
-        rol: Rol.ADMIN,
-      },
-      create: {
-        email,
-        password: passwordHash,
-        rol: Rol.ADMIN,
-      },
-    });
-
-    this.logger.log(`Usuario ADMIN listo: ${usuario.email}`);
+    if (!existing) {
+      const passwordHash = await bcrypt.hash(password, 10);
+      await this.prisma.usuario.create({
+        data: { email, password: passwordHash, rol: Rol.ADMIN },
+      });
+      this.logger.log(`Usuario ADMIN creado: ${email}`);
+    } else {
+      // M3: no pisar la contraseña en cada boot — solo garantizar el rol.
+      if (existing.rol !== Rol.ADMIN) {
+        await this.prisma.usuario.update({
+          where: { email },
+          data: { rol: Rol.ADMIN },
+        });
+      }
+      this.logger.log(`Usuario ADMIN existente: ${email}`);
+    }
   }
 }
