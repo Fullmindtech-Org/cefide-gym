@@ -42,6 +42,7 @@ export function KioscoPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const molinete = useRef(getMolineteId());
+  const validatingRef = useRef(false);
 
   const reset = useCallback(() => {
     setDni('');
@@ -155,6 +156,8 @@ export function KioscoPage() {
   }
 
   async function handleValidar(dniVal: string, inscripcionId: string | null) {
+    if (validatingRef.current) return;
+    validatingRef.current = true;
     setEstado('loading_validar');
 
     try {
@@ -177,6 +180,8 @@ export function KioscoPage() {
         setErrorMsg('Error de conexión');
       }
       setEstado('error');
+    } finally {
+      validatingRef.current = false;
     }
   }
 

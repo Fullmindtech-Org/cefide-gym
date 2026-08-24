@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { abrirMolinete, getStatus } from './serial';
 
 const app = express();
@@ -7,6 +7,23 @@ app.use(express.json());
 const PORT = parseInt(process.env.DRIVER_PORT || '3001', 10);
 const COM_PORT = process.env.COM_PORT || 'COM1';
 const PULSE_MS = parseInt(process.env.COM_PULSE_MS || '500', 10);
+const DRIVER_SECRET = process.env.DRIVER_SECRET || '';
+
+if (!DRIVER_SECRET) {
+  console.warn('[WARN] DRIVER_SECRET no configurado — endpoint /abrir desprotegido (C1)');
+}
+
+// Valida X-Driver-Secret en endpoints que accionan hardware (C1).
+function requireSecret(req: Request, res: Response, next: NextFunction) {
+  if (!DRIVER_SECRET) {
+    return next();
+  }
+  if (req.headers['x-driver-secret'] !== DRIVER_SECRET) {
+    res.status(401).json({ ok: false, error: 'unauthorized' });
+    return;
+  }
+  next();
+}
 
 /**
  * POST /abrir
@@ -14,8 +31,9 @@ const PULSE_MS = parseInt(process.env.COM_PULSE_MS || '500', 10);
  * para abrir el molinete.
  *
  * Body opcional: { pin?: 'HAB1' | 'HAB2' }
+ * Header requerido: X-Driver-Secret
  */
-app.post('/abrir', async (req, res) => {
+app.post('/abrir', requireSecret, async (req, res) => {
   const pin = req.body?.pin || 'HAB1';
 
   console.log(`[${new Date().toISOString()}] Solicitud apertura — PIN: ${pin}, COM: ${COM_PORT}`);
@@ -45,11 +63,13 @@ app.get('/status', (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+// Bind explícito a 127.0.0.1 — solo el proceso local puede alcanzar este puerto (C1).
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`\n=== MOLINETE DRIVER ===`);
-  console.log(`Puerto HTTP:  ${PORT}`);
+  console.log(`Puerto HTTP:  127.0.0.1:${PORT}`);
   console.log(`Puerto COM:   ${COM_PORT}`);
   console.log(`Pulso:        ${PULSE_MS}ms`);
+  console.log(`Secret:       ${DRIVER_SECRET ? 'configurado' : 'NO CONFIGURADO (inseguro)'}`);
   console.log(`Placa:        DCM PCA150`);
   console.log(`========================\n`);
 });

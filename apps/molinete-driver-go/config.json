@@ -1,12 +1,19 @@
 {
   "http_port": 3001,
-  "mode": "proxy",
   "allow_origin": "https://cefide-client.fmtcloud.com.ar",
   "timeout_ms": 5000,
+  "secret": "CAMBIAR_POR_TOKEN_ALEATORIO_LARGO",
 
-  "target": "http://molinete1.local:3001/molinete1",
-
-  "com_port": "COM1",
-  "pulse_ms": 500,
-  "pin": "HAB1"
+  "targets": {
+    "molinete1": {
+      "mode": "proxy",
+      "target_url": "http://192.168.1.100/abrir"
+    },
+    "molinete2": {
+      "mode": "serial",
+      "com_port": "COM1",
+      "pulse_ms": 500,
+      "pin": "HAB1"
+    }
+  }
 }

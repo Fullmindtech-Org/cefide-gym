@@ -39,8 +39,11 @@ function targetName(molineteId: number): string {
 export async function abrirMolineteLocal(molineteId: number): Promise<DriverResult> {
   try {
     const url = `${DRIVER}/proxy/${targetName(molineteId)}/${config.molineteOpenPath}`;
+    const headers: HeadersInit = {};
+    if (config.driverSecret) headers['X-Driver-Secret'] = config.driverSecret;
     const res = await fetch(url, {
       method: config.molineteOpenMethod,
+      headers,
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };

@@ -13,25 +13,34 @@ export class ProfesoresService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
-    const profesores = await this.prisma.profesor.findMany({
-      include: {
-        usuario: { select: { id: true, email: true } },
-        actividades: { select: { id: true, nombre: true } },
-      },
-      orderBy: { apellido: 'asc' },
-    });
-
-    return Promise.all(
-      profesores.map(async (p) => {
-        const actividadIds = p.actividades.map((a) => a.id);
-        const alumnos = actividadIds.length
-          ? await this.prisma.alumno.count({
-              where: { inscripciones: { some: { actividadId: { in: actividadIds } } } },
-            })
-          : 0;
-        return { ...p, _count: { alumnos } };
+    const [profesores, countRows] = await Promise.all([
+      this.prisma.profesor.findMany({
+        include: {
+          usuario: { select: { id: true, email: true } },
+          actividades: { select: { id: true, nombre: true } },
+        },
+        orderBy: { apellido: 'asc' },
       }),
+      // One query: count distinct alumnos per actividad, grouped.
+      this.prisma.inscripcionActividad.groupBy({
+        by: ['actividadId'],
+        _count: { alumnoId: true },
+        where: { alumno: { activo: true } },
+      }),
+    ]);
+
+    const alumnosByActividad = new Map(
+      countRows.map((r) => [r.actividadId, r._count.alumnoId]),
     );
+
+    return profesores.map((p) => {
+      const actividadIds = p.actividades.map((a) => a.id);
+      const alumnos = actividadIds.reduce(
+        (sum, id) => sum + (alumnosByActividad.get(id) ?? 0),
+        0,
+      );
+      return { ...p, _count: { alumnos } };
+    });
   }
 
   async findOne(id: string) {

@@ -12,6 +12,7 @@ import { ReportesService } from './reportes.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
+import { CurrentUser, AuthUser } from '../auth/decorators/current-user.decorator';
 import { Rol } from '@prisma/client';
 
 @Controller('reportes')
@@ -23,8 +24,14 @@ export class ReportesController {
   ) {}
 
   @Get('actividad')
-  reporteActividad(@Query('actividadId') actividadId?: string) {
-    return this.reportesService.reporteActividad(actividadId);
+  reporteActividad(
+    @CurrentUser() user: AuthUser,
+    @Query('actividadId') actividadId?: string,
+  ) {
+    return this.reportesService.reporteActividad(
+      actividadId,
+      user.rol === Rol.PROFESOR ? (user.profesorId ?? '__none__') : undefined,
+    );
   }
 
   @Get('actividad/csv')

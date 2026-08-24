@@ -99,7 +99,8 @@ Al inscribir (o cambiar frecuencia), `clasesTotal` se setea desde la config:
    - **Clases sueltas** → `clasesTotal += N` (`PATCH /:id/clases-sueltas`)
    - **Cambiar frecuencia** → recalcula `clasesTotal` (`PATCH /:id/frecuencia`)
 6. **Renovación mensual** → `POST /inscripciones/renovacion-mensual` resetea **todas** las inscripciones: `clasesUsadas=0`, `pagado=false`, `fechaPago=null`.
-   - ⚠️ Es **manual** (un botón). No hay tarea programada/cron, aunque `@nestjs/schedule` está instalado.
+   - Se puede disparar manualmente desde el panel admin.
+   - **Cron automático** (`RenovacionCron`): corre todos los días a las 3 AM. Si `diaDelMes >= diaVencimiento` y aún no se ejecutó este mes (idempotente via `ultimaRenovacion`), ejecuta la renovación automáticamente.
 
 **Baja/alta de alumno:** `PATCH /alumnos/:id/deactivate` y `/activate` togglean `activo`. Un alumno inactivo queda bloqueado en el molinete aunque tenga pagos.
 
@@ -137,7 +138,7 @@ Mientras sea > 0, deja pasar sin pago. El conteo es por **mes calendario** (desd
 - Crea `Ingreso(estado, molinete)`.
 - Si `estado != ROJO` y hay inscripción → `clasesUsadas += 1` (descuenta clase), dentro de una transacción.
 
-Apertura del molinete (`MolineteService.abrir`): si VERDE o AMARILLO, hace `POST` al driver local (`COM_SERVICE_URL_1/2`, timeout 5 s). El driver da el pulso de 500 ms al hardware (PCA150).
+Apertura del molinete: el **frontend** hace `POST http://127.0.0.1:3001/proxy/<nombre>/abrir` con `X-Driver-Secret` directamente al Go driver local. El backend en la nube no alcanza los molinetes; el driver da el pulso al hardware (PCA150, 500 ms). El endpoint `/molinete/:num/contingencia` del backend solo deja registro en la base de datos.
 
 **Contingencia:** `POST /molinete/:num/contingencia` abre manualmente desde el admin. `GET /molinete/:num/status` chequea si el driver responde.
 
@@ -194,8 +195,7 @@ UI: `/admin/reportes`, `/admin/pagos` (historial), `/admin/ingresos` (log de acc
 | POST | `/inscripciones/renovacion-mensual` | ADMIN | reset mensual |
 | POST | `/acceso/consultar` | público | kiosco paso 1 |
 | POST | `/acceso/validar` | público | kiosco paso 2 |
-| POST | `/molinete/:num/contingencia` | ADMIN | abrir manual |
-| GET | `/molinete/:num/status` | ADMIN | estado driver |
+| POST | `/molinete/:num/contingencia` | ADMIN | apertura manual (log) |
 | GET | `/ingresos` | ADMIN/PROF | log accesos |
 | GET | `/reportes/actividad` | ADMIN/PROF | reporte |
 | GET | `/reportes/actividad/csv` | ADMIN | CSV |
@@ -241,9 +241,11 @@ docker compose up -d              # prender (sin rebuild)
 | API | http://localhost:3000/api |
 | Postgres | localhost:5432 (`cefide`/`cefide_dev`) |
 
-**Login dev:** `admin@cefide.com` / `admin123`.
+**Login dev:** credenciales definidas en `ADMIN_EMAIL` / `ADMIN_PASSWORD` del `.env` (ver `.env.example`).
 
-Variables clave (`.env` raíz + `apps/backend/.env`): `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CORS_ORIGIN`, `COM_SERVICE_URL_1/2`, `COM_PULSE_MS`, `DEFAULT_CLASES_GRACIA`, `DEFAULT_DIA_VENCIMIENTO`.
+Variables clave (`.env` raíz + `apps/backend/.env`): `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CORS_ORIGIN`, `DRIVER_SECRET`, `DEFAULT_CLASES_GRACIA`, `DEFAULT_DIA_VENCIMIENTO`.
+
+> Las vars `COM_PORT_MOLINETE_*`, `COM_SERVICE_URL_*` y `COM_PULSE_MS` pertenecen al **go-driver** (configuradas en su `config.json`), no al backend.
 
 > Nota: el `environment:` del `docker-compose.yml` interpola `${ADMIN_EMAIL}` etc. desde el `.env` de la **raíz**. Si solo lo ponés en `apps/backend/.env`, queda pisado por string vacío. Definir en la raíz.
 
@@ -254,7 +256,7 @@ El `molinete-driver` no corre en dev (necesita puertos COM físicos). El backend
 ## 11. Observaciones / huecos detectados
 
 - **`diaVencimiento`** está en config pero **no se usa**: la gracia se mide contando ingresos AMARILLO del mes, no por fecha límite.
-- **Renovación mensual manual**: no hay cron pese a tener `@nestjs/schedule`. Si nadie aprieta el botón, las cuotas no se reinician.
+- **Renovación mensual**: hay cron automático (`EVERY_DAY_AT_3AM`) que ejecuta cuando `diaDelMes >= diaVencimiento`, idempotente por mes. El botón manual sigue disponible en el panel admin.
 - **`activo` ≠ estado de pago**: el listado de alumnos muestra el flag manual; el estado de cuota vive en las inscripciones.
 - **DNIs comodín** (`00000000`, `99999999`) dan acceso libre permanente — útil para staff/pruebas, revisar en producción.
 </content>

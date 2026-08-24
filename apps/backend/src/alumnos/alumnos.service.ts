@@ -1,6 +1,7 @@
 import {
   Injectable,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { Frecuencia } from '@prisma/client';
@@ -91,19 +92,31 @@ export class AlumnosService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, profesorId?: string) {
+    let actividadIds: string[] | null = null;
+    if (profesorId) {
+      const prof = await this.prisma.profesor.findUnique({
+        where: { id: profesorId },
+        select: { actividades: { select: { id: true } } },
+      });
+      actividadIds = prof?.actividades.map((a) => a.id) ?? [];
+    }
+
     const alumno = await this.prisma.alumno.findUnique({
       where: { id },
       include: {
         inscripciones: {
+          where: actividadIds ? { actividadId: { in: actividadIds } } : undefined,
           include: { actividad: true },
           orderBy: { actividad: { nombre: 'asc' } },
         },
       },
     });
 
-    if (!alumno) {
-      throw new NotFoundException('Alumno no encontrado');
+    if (!alumno) throw new NotFoundException('Alumno no encontrado');
+
+    if (actividadIds !== null && alumno.inscripciones.length === 0) {
+      throw new ForbiddenException('Sin acceso a este alumno');
     }
 
     return alumno;
@@ -419,8 +432,8 @@ export class AlumnosService {
       select: { id: true, frecuencia: true },
     });
 
-    await Promise.all(
-      inscripciones.map((ins) =>
+    await Promise.all([
+      ...inscripciones.map((ins) =>
         this.prisma.inscripcionActividad.update({
           where: { id: ins.id },
           data: {
@@ -430,7 +443,11 @@ export class AlumnosService {
           },
         }),
       ),
-    );
+      this.prisma.configSistema.update({
+        where: { id: 'global' },
+        data: { ultimaRenovacion: new Date() },
+      }),
+    ]);
 
     return { renovados: inscripciones.length };
   }

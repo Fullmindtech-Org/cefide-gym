@@ -12,6 +12,7 @@ interface FindAllParams {
   actividadId?: string;
   page?: number;
   limit?: number;
+  profesorId?: string;
 }
 
 @Injectable()
@@ -32,11 +33,29 @@ export class InscripcionesService {
   }
 
   async findAll(params: FindAllParams) {
-    const { search, actividadId, page = 1, limit = 20 } = params;
+    const { search, actividadId, page = 1, limit = 20, profesorId } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
-    if (actividadId) where.actividadId = actividadId;
+
+    if (profesorId) {
+      const prof = await this.prisma.profesor.findUnique({
+        where: { id: profesorId },
+        select: { actividades: { select: { id: true } } },
+      });
+      const allowedIds = prof?.actividades.map((a) => a.id) ?? [];
+      if (actividadId) {
+        if (!allowedIds.includes(actividadId)) {
+          return { data: [], total: 0, page, totalPages: 0 };
+        }
+        where.actividadId = actividadId;
+      } else {
+        where.actividadId = { in: allowedIds };
+      }
+    } else if (actividadId) {
+      where.actividadId = actividadId;
+    }
+
     if (search) {
       where.alumno = {
         OR: [
@@ -68,9 +87,17 @@ export class InscripcionesService {
     return { data, total, page, totalPages: Math.ceil(total / limit) };
   }
 
-  async findByAlumno(alumnoId: string) {
+  async findByAlumno(alumnoId: string, profesorId?: string) {
+    const where: Record<string, unknown> = { alumnoId };
+    if (profesorId) {
+      const prof = await this.prisma.profesor.findUnique({
+        where: { id: profesorId },
+        select: { actividades: { select: { id: true } } },
+      });
+      where.actividadId = { in: prof?.actividades.map((a) => a.id) ?? [] };
+    }
     return this.prisma.inscripcionActividad.findMany({
-      where: { alumnoId },
+      where,
       include: { actividad: true },
       orderBy: { actividad: { nombre: 'asc' } },
     });
@@ -186,10 +213,4 @@ export class InscripcionesService {
     });
   }
 
-  async renovacionMensual() {
-    const result = await this.prisma.inscripcionActividad.updateMany({
-      data: { clasesUsadas: 0, pagado: false, fechaPago: null },
-    });
-    return { renovadas: result.count };
-  }
 }

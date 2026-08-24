@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDebounce } from '@/hooks/use-debounce';
 import { Search, Plus, DollarSign, Check, X, Trash2, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ interface NuevaInscripcionForm {
 export function ClasesPagosPage() {
   const token = useAuthStore((s) => s.token);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search);
   const [filterActividad, setFilterActividad] = useState('all');
   const [page, setPage] = useState(1);
 
@@ -48,6 +50,9 @@ export function ClasesPagosPage() {
   const [editUsadas, setEditUsadas] = useState('');
   const [editTotal, setEditTotal] = useState('');
   const [editError, setEditError] = useState('');
+
+  // Confirmar eliminación
+  const [confirmInscripcion, setConfirmInscripcion] = useState<InscripcionFlat | null>(null);
 
   // Nueva inscripción dialog
   const [nuevaDialog, setNuevaDialog] = useState(false);
@@ -79,7 +84,7 @@ export function ClasesPagosPage() {
   }
 
   const params = new URLSearchParams();
-  if (search) params.set('search', search);
+  if (debouncedSearch) params.set('search', debouncedSearch);
   if (filterActividad !== 'all') params.set('actividadId', filterActividad);
   params.set('page', String(page));
   params.set('limit', '20');
@@ -143,13 +148,10 @@ export function ClasesPagosPage() {
     }
   }
 
-  async function handleEliminarInscripcion(ins: InscripcionFlat) {
-    const ok = window.confirm(
-      `¿Eliminar la inscripción de ${ins.alumno.apellido}, ${ins.alumno.nombre} en "${ins.actividad.nombre}"?\n\n` +
-        'Se borran también sus pagos e ingresos de esta actividad. Esta acción no se puede deshacer.',
-    );
-    if (!ok) return;
-    await api(`/inscripciones/${ins.id}`, { method: 'DELETE', token: token! });
+  async function doEliminarInscripcion() {
+    if (!confirmInscripcion) return;
+    await api(`/inscripciones/${confirmInscripcion.id}`, { method: 'DELETE', token: token! });
+    setConfirmInscripcion(null);
     mutate();
   }
 
@@ -265,7 +267,7 @@ export function ClasesPagosPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleEliminarInscripcion(ins)}
+                      onClick={() => setConfirmInscripcion(ins)}
                       title="Eliminar inscripción"
                     >
                       <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
@@ -364,6 +366,31 @@ export function ClasesPagosPage() {
                   <Check className="mr-1 h-4 w-4" />
                   Guardar
                 </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmar eliminación inscripción */}
+      <Dialog open={!!confirmInscripcion} onOpenChange={(v) => !v && setConfirmInscripcion(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar inscripción</DialogTitle>
+          </DialogHeader>
+          {confirmInscripcion && (
+            <div className="space-y-4">
+              <p className="text-sm">
+                ¿Eliminar la inscripción de{' '}
+                <strong>{confirmInscripcion.alumno.apellido}, {confirmInscripcion.alumno.nombre}</strong>{' '}
+                en &ldquo;{confirmInscripcion.actividad.nombre}&rdquo;?
+              </p>
+              <p className="text-xs text-cefide-muted">
+                Se borran también sus pagos e ingresos de esta actividad. Esta acción no se puede deshacer.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setConfirmInscripcion(null)}>Cancelar</Button>
+                <Button variant="destructive" onClick={doEliminarInscripcion}>Eliminar</Button>
               </div>
             </div>
           )}

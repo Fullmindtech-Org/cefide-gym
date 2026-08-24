@@ -1,18 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-
-interface UpdateConfigDto {
-  clasesGracia?: number;
-  diaVencimiento?: number;
-  clasesUnaVez?: number;
-  clasesDosVeces?: number;
-  clasesTresVeces?: number;
-  clasesLibre?: number;
-  tiempoVerde?: number;
-  tiempoAmarillo?: number;
-  tiempoRojo?: number;
-  codigosComodin?: string;
-}
+import { UpdateConfigDto } from './update-config.dto';
 
 @Injectable()
 export class ConfigSistemaService {
