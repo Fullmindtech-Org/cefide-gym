@@ -3,11 +3,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlumnosService } from '../alumnos/alumnos.service';
 
-/**
- * Renovación mensual automática
- * Se ejecuta todos los lunes a las 03:00 AM
- * Solo renueva si estamos en la primera semana del mes (después del día 28 del mes anterior)
- */
 @Injectable()
 export class RenovacionCron {
   private readonly logger = new Logger(RenovacionCron.name);
@@ -17,26 +12,31 @@ export class RenovacionCron {
     private readonly prisma: PrismaService,
   ) {}
 
-  @Cron(CronExpression.EVERY_WEEK)
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async handleRenovacion() {
     const hoy = new Date();
     const diaDelMes = hoy.getDate();
 
-    // Solo ejecutar la primera semana del mes (días 1-7)
-    if (diaDelMes > 7) {
-      return;
-    }
-
-    // Verificar que no se haya renovado ya este mes
     const config = await this.prisma.configSistema.findUnique({
       where: { id: 'global' },
     });
 
     const diaVencimiento = config?.diaVencimiento ?? 5;
 
-    // Solo ejecutar si pasó el día de vencimiento
     if (diaDelMes < diaVencimiento) {
       return;
+    }
+
+    // Idempotencia: solo una vez por mes
+    if (config?.ultimaRenovacion) {
+      const ultima = config.ultimaRenovacion;
+      if (
+        ultima.getFullYear() === hoy.getFullYear() &&
+        ultima.getMonth() === hoy.getMonth()
+      ) {
+        this.logger.log('Renovación ya ejecutada este mes, saltando.');
+        return;
+      }
     }
 
     this.logger.log('Ejecutando renovación mensual...');

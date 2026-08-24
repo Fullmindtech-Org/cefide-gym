@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDebounce } from '@/hooks/use-debounce';
 import { Search, Plus, UserX, UserCheck, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -19,13 +20,14 @@ import type { Alumno, PaginatedResponse } from '@/types';
 export function AlumnosPage() {
   const token = useAuthStore((s) => s.token);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search);
   const [filterActivo, setFilterActivo] = useState('all');
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editAlumno, setEditAlumno] = useState<Alumno | null>(null);
 
   const params = new URLSearchParams();
-  if (search) params.set('search', search);
+  if (debouncedSearch) params.set('search', debouncedSearch);
   if (filterActivo !== 'all') params.set('activo', filterActivo);
   params.set('page', String(page));
   params.set('limit', '20');

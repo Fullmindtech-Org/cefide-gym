@@ -1,9 +1,10 @@
 import { Controller, Post, Get, Body } from '@nestjs/common';
-import { IsString, IsOptional, IsInt } from 'class-validator';
+import { Throttle } from '@nestjs/throttler';
+import { IsString, IsOptional, IsInt, Matches } from 'class-validator';
 import { AccesoService } from './acceso.service';
 
 class ConsultarAccesoDto {
-  @IsString()
+  @Matches(/^\d{7,8}$/, { message: 'El DNI debe tener 7 u 8 dígitos numéricos' })
   dni: string;
 }
 
@@ -39,6 +40,8 @@ export class AccesoController {
    * Paso 1: busca el alumno y devuelve sus inscripciones activas.
    * No registra ingreso ni abre molinete.
    */
+  // 30 consultas/min por IP — frena enumeración de socios (M1).
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @Post('consultar')
   consultar(@Body() dto: ConsultarAccesoDto) {
     return this.accesoService.consultarAcceso(dto.dni);
@@ -51,20 +54,14 @@ export class AccesoController {
    * La apertura física la dispara el navegador del kiosco contra su driver
    * local (localhost). El backend en la nube NO puede alcanzar el molinete.
    */
+  // 20 validaciones/min por IP — un kiosco real nunca supera esto.
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post('validar')
-  async validar(@Body() dto: ValidarAccesoDto) {
-    const molineteNum = dto.molinete ?? 1;
-    const inscripcionId = dto.inscripcionId ?? null;
-
-    const resultado = await this.accesoService.validarAcceso(dto.dni, inscripcionId);
-
-    await this.accesoService.registrarIngreso(
+  validar(@Body() dto: ValidarAccesoDto) {
+    return this.accesoService.validarYRegistrarAcceso(
       dto.dni,
-      inscripcionId,
-      resultado.estado,
-      molineteNum,
+      dto.inscripcionId ?? null,
+      dto.molinete ?? 1,
     );
-
-    return resultado;
   }
 }

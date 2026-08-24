@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { EstadoIngreso } from '@prisma/client';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { EstadoIngreso, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DNIS_COMODIN_DEFAULT = ['00000000', '99999999'];
@@ -38,6 +38,8 @@ export interface ConsultaAcceso {
 
 @Injectable()
 export class AccesoService {
+  private readonly logger = new Logger(AccesoService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   /** DNIs comodín (acceso ilimitado) configurables desde el panel. */
@@ -99,8 +101,24 @@ export class AccesoService {
     };
   }
 
-  async validarAcceso(dni: string, inscripcionId: string | null): Promise<ResultadoAcceso> {
+  /**
+   * Valida el acceso y registra el ingreso en una sola transacción serializable.
+   * Elimina la condición de carrera del read-then-write separado (C2).
+   */
+  async validarYRegistrarAcceso(
+    dni: string,
+    inscripcionId: string | null,
+    molinete: number = 1,
+  ): Promise<ResultadoAcceso> {
+    // Comodín: no depende de contadores, sin transacción serializable necesaria.
     if ((await this.getCodigosComodin()).includes(dni)) {
+      this.logger.warn(`[COMODIN] Acceso comodín usado: DNI=${dni} molinete=${molinete}`);
+      const alumno = await this.prisma.alumno.findUnique({ where: { dni } });
+      if (alumno) {
+        await this.prisma.ingreso.create({
+          data: { alumnoId: alumno.id, estado: EstadoIngreso.VERDE, molinete },
+        });
+      }
       return {
         estado: EstadoIngreso.VERDE,
         alumno: { nombre: 'ACCESO', apellido: 'AUTORIZADO', dni },
@@ -110,139 +128,151 @@ export class AccesoService {
       };
     }
 
-    const alumno = await this.prisma.alumno.findUnique({ where: { dni } });
+    // Reintentos ante error de serialización (P2034) por requests concurrentes.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            const alumno = await tx.alumno.findUnique({ where: { dni } });
+            if (!alumno) throw new NotFoundException('DNI no registrado');
 
-    if (!alumno) throw new NotFoundException('DNI no registrado');
+            if (!alumno.activo) {
+              await tx.ingreso.create({
+                data: { alumnoId: alumno.id, inscripcionId: null, estado: EstadoIngreso.ROJO, molinete },
+              });
+              return {
+                estado: EstadoIngreso.ROJO,
+                alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
+                clasesRestantes: 0,
+                clasesGraciaRestantes: 0,
+                mensaje: 'Alumno inactivo — acceso bloqueado',
+              };
+            }
 
-    if (!alumno.activo) {
-      return {
-        estado: EstadoIngreso.ROJO,
-        alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
-        clasesRestantes: 0,
-        clasesGraciaRestantes: 0,
-        mensaje: 'Alumno inactivo — acceso bloqueado',
-      };
-    }
+            if (!inscripcionId) {
+              await tx.ingreso.create({
+                data: { alumnoId: alumno.id, inscripcionId: null, estado: EstadoIngreso.ROJO, molinete },
+              });
+              return {
+                estado: EstadoIngreso.ROJO,
+                alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
+                clasesRestantes: 0,
+                clasesGraciaRestantes: 0,
+                mensaje: 'Seleccionar actividad',
+              };
+            }
 
-    if (!inscripcionId) {
-      return {
-        estado: EstadoIngreso.ROJO,
-        alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
-        clasesRestantes: 0,
-        clasesGraciaRestantes: 0,
-        mensaje: 'Seleccionar actividad',
-      };
-    }
+            const inscripcion = await tx.inscripcionActividad.findFirst({
+              where: { id: inscripcionId, alumnoId: alumno.id },
+              include: { actividad: { select: { nombre: true } } },
+            });
 
-    const inscripcion = await this.prisma.inscripcionActividad.findFirst({
-      where: { id: inscripcionId, alumnoId: alumno.id },
-      include: { actividad: { select: { nombre: true } } },
-    });
+            if (!inscripcion) {
+              await tx.ingreso.create({
+                data: { alumnoId: alumno.id, inscripcionId, estado: EstadoIngreso.ROJO, molinete },
+              });
+              return {
+                estado: EstadoIngreso.ROJO,
+                alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
+                clasesRestantes: 0,
+                clasesGraciaRestantes: 0,
+                mensaje: 'Inscripción no válida',
+              };
+            }
 
-    if (!inscripcion) {
-      return {
-        estado: EstadoIngreso.ROJO,
-        alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
-        clasesRestantes: 0,
-        clasesGraciaRestantes: 0,
-        mensaje: 'Inscripción no válida',
-      };
-    }
+            const config = await tx.configSistema.findUnique({ where: { id: 'global' } });
+            const clasesGraciaMax = config?.clasesGracia ?? 2;
+            const clasesRestantes = inscripcion.clasesTotal - inscripcion.clasesUsadas;
+            const actividad = inscripcion.actividad.nombre;
 
-    const config = await this.prisma.configSistema.findUnique({ where: { id: 'global' } });
-    const clasesGraciaMax = config?.clasesGracia ?? 2;
-    const clasesRestantes = inscripcion.clasesTotal - inscripcion.clasesUsadas;
-    const actividad = inscripcion.actividad.nombre;
+            if (clasesRestantes <= 0) {
+              await tx.ingreso.create({
+                data: { alumnoId: alumno.id, inscripcionId, estado: EstadoIngreso.ROJO, molinete },
+              });
+              return {
+                estado: EstadoIngreso.ROJO,
+                alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
+                clasesRestantes: 0,
+                clasesGraciaRestantes: 0,
+                mensaje: `Sin clases disponibles en ${actividad}`,
+                actividad,
+              };
+            }
 
-    if (clasesRestantes <= 0) {
-      return {
-        estado: EstadoIngreso.ROJO,
-        alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
-        clasesRestantes: 0,
-        clasesGraciaRestantes: 0,
-        mensaje: `Sin clases disponibles en ${actividad}`,
-        actividad,
-      };
-    }
+            const clasesRestantesPost = clasesRestantes - 1;
 
-    // Esta pasada consume una clase (el incremento ocurre en registrarIngreso).
-    // Reportamos las clases que quedarán DESPUÉS de esta pasada.
-    const clasesRestantesPost = clasesRestantes - 1;
+            if (inscripcion.pagado) {
+              await tx.ingreso.create({
+                data: { alumnoId: alumno.id, inscripcionId, estado: EstadoIngreso.VERDE, molinete },
+              });
+              await tx.inscripcionActividad.update({
+                where: { id: inscripcionId },
+                data: { clasesUsadas: { increment: 1 } },
+              });
+              return {
+                estado: EstadoIngreso.VERDE,
+                alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
+                clasesRestantes: clasesRestantesPost,
+                clasesGraciaRestantes: 0,
+                mensaje: `Acceso permitido — ${clasesRestantesPost} clase(s) restante(s) en ${actividad}`,
+                actividad,
+              };
+            }
 
-    if (inscripcion.pagado) {
-      return {
-        estado: EstadoIngreso.VERDE,
-        alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
-        clasesRestantes: clasesRestantesPost,
-        clasesGraciaRestantes: 0,
-        mensaje: `Acceso permitido — ${clasesRestantesPost} clase(s) restante(s) en ${actividad}`,
-        actividad,
-      };
-    }
+            // Sin pago — verificar clases de gracia.
+            const inicioMes = new Date();
+            inicioMes.setDate(1);
+            inicioMes.setHours(0, 0, 0, 0);
 
-    const inicioMes = new Date();
-    inicioMes.setDate(1);
-    inicioMes.setHours(0, 0, 0, 0);
+            const ingresosGracia = await tx.ingreso.count({
+              where: {
+                inscripcionId,
+                estado: EstadoIngreso.AMARILLO,
+                fechaHora: { gte: inicioMes },
+              },
+            });
 
-    const ingresosGracia = await this.prisma.ingreso.count({
-      where: {
-        inscripcionId,
-        estado: EstadoIngreso.AMARILLO,
-        fechaHora: { gte: inicioMes },
-      },
-    });
+            const clasesGraciaRestantes = clasesGraciaMax - ingresosGracia;
 
-    const clasesGraciaRestantes = clasesGraciaMax - ingresosGracia;
+            if (clasesGraciaRestantes > 0) {
+              await tx.ingreso.create({
+                data: { alumnoId: alumno.id, inscripcionId, estado: EstadoIngreso.AMARILLO, molinete },
+              });
+              await tx.inscripcionActividad.update({
+                where: { id: inscripcionId },
+                data: { clasesUsadas: { increment: 1 } },
+              });
+              return {
+                estado: EstadoIngreso.AMARILLO,
+                alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
+                clasesRestantes: clasesRestantesPost,
+                clasesGraciaRestantes,
+                mensaje: `${clasesGraciaRestantes} clase(s) de gracia en ${actividad}. Regularizar pago.`,
+                actividad,
+              };
+            }
 
-    if (clasesGraciaRestantes > 0) {
-      return {
-        estado: EstadoIngreso.AMARILLO,
-        alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
-        clasesRestantes: clasesRestantesPost,
-        clasesGraciaRestantes,
-        mensaje: `${clasesGraciaRestantes} clase(s) de gracia en ${actividad}. Regularizar pago.`,
-        actividad,
-      };
-    }
-
-    return {
-      estado: EstadoIngreso.ROJO,
-      alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
-      clasesRestantes,
-      clasesGraciaRestantes: 0,
-      mensaje: `Sin clases de gracia — regularizar pago para ${actividad}`,
-      actividad,
-    };
-  }
-
-  async registrarIngreso(
-    dni: string,
-    inscripcionId: string | null,
-    estado: EstadoIngreso,
-    molinete: number = 1,
-  ) {
-    const alumno = await this.prisma.alumno.findUnique({ where: { dni } });
-    if (!alumno) return;
-
-    if ((await this.getCodigosComodin()).includes(dni)) {
-      return this.prisma.ingreso.create({
-        data: { alumnoId: alumno.id, estado, molinete },
-      });
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      const ingreso = await tx.ingreso.create({
-        data: { alumnoId: alumno.id, inscripcionId, estado, molinete },
-      });
-
-      if (estado !== EstadoIngreso.ROJO && inscripcionId) {
-        await tx.inscripcionActividad.update({
-          where: { id: inscripcionId },
-          data: { clasesUsadas: { increment: 1 } },
-        });
+            await tx.ingreso.create({
+              data: { alumnoId: alumno.id, inscripcionId, estado: EstadoIngreso.ROJO, molinete },
+            });
+            return {
+              estado: EstadoIngreso.ROJO,
+              alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
+              clasesRestantes,
+              clasesGraciaRestantes: 0,
+              mensaje: `Sin clases de gracia — regularizar pago para ${actividad}`,
+              actividad,
+            };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (e) {
+        // P2034: serialization failure por requests concurrentes — reintentar.
+        if (e?.code === 'P2034' && attempt < 2) continue;
+        throw e;
       }
-
-      return ingreso;
-    });
+    }
+    // Unreachable: el loop siempre retorna o lanza antes de llegar aquí.
+    throw new Error('validarYRegistrarAcceso: máximo de reintentos alcanzado');
   }
 }

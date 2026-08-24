@@ -10,6 +10,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { InscripcionesService } from './inscripciones.service';
+import { AlumnosService } from '../alumnos/alumnos.service';
+import { CurrentUser, AuthUser } from '../auth/decorators/current-user.decorator';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
 import { PagarInscripcionDto } from './dto/pagar-inscripcion.dto';
 import { AgregarClasesDto } from './dto/agregar-clases.dto';
@@ -22,10 +24,14 @@ import { Rol } from '@prisma/client';
 @Controller('inscripciones')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class InscripcionesController {
-  constructor(private readonly inscripcionesService: InscripcionesService) {}
+  constructor(
+    private readonly inscripcionesService: InscripcionesService,
+    private readonly alumnosService: AlumnosService,
+  ) {}
 
   @Get()
   findAll(
+    @CurrentUser() user: AuthUser,
     @Query('search') search?: string,
     @Query('actividadId') actividadId?: string,
     @Query('page') page?: string,
@@ -36,12 +42,16 @@ export class InscripcionesController {
       actividadId,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
+      profesorId: user.rol === Rol.PROFESOR ? (user.profesorId ?? '__none__') : undefined,
     });
   }
 
   @Get('alumno/:alumnoId')
-  findByAlumno(@Param('alumnoId') alumnoId: string) {
-    return this.inscripcionesService.findByAlumno(alumnoId);
+  findByAlumno(@Param('alumnoId') alumnoId: string, @CurrentUser() user: AuthUser) {
+    return this.inscripcionesService.findByAlumno(
+      alumnoId,
+      user.rol === Rol.PROFESOR ? (user.profesorId ?? '__none__') : undefined,
+    );
   }
 
   @Post()
@@ -83,6 +93,6 @@ export class InscripcionesController {
   @Post('renovacion-mensual')
   @Roles(Rol.ADMIN)
   renovacionMensual() {
-    return this.inscripcionesService.renovacionMensual();
+    return this.alumnosService.renovacionMensual();
   }
 }

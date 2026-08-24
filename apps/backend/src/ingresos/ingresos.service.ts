@@ -10,6 +10,7 @@ interface FindAllParams {
   search?: string;
   page?: number;
   limit?: number;
+  profesorId?: string;
 }
 
 @Injectable()
@@ -17,10 +18,19 @@ export class IngresosService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(params: FindAllParams) {
-    const { desde, hasta, alumnoId, estado, search, page = 1, limit = 30 } = params;
+    const { desde, hasta, alumnoId, estado, search, page = 1, limit = 30, profesorId } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
+
+    if (profesorId) {
+      const prof = await this.prisma.profesor.findUnique({
+        where: { id: profesorId },
+        select: { actividades: { select: { id: true } } },
+      });
+      const actividadIds = prof?.actividades.map((a) => a.id) ?? [];
+      where.inscripcion = { actividadId: { in: actividadIds } };
+    }
 
     if (desde || hasta) {
       where.fechaHora = {};

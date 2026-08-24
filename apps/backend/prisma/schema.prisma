@@ -87,13 +87,14 @@ model Profesor {
 }
 
 model Usuario {
-  id         String    @id @default(cuid())
-  email      String    @unique
-  password   String
-  rol        Rol       @default(PROFESOR)
-  profesorId String?   @unique
-  profesor   Profesor? @relation(fields: [profesorId], references: [id])
-  creadoEn   DateTime  @default(now())
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  rol           Rol       @default(PROFESOR)
+  profesorId    String?   @unique
+  profesor      Profesor? @relation(fields: [profesorId], references: [id])
+  creadoEn      DateTime  @default(now())
+  tokenVersion  Int       @default(0)
 }
 
 model Ingreso {
@@ -127,15 +128,16 @@ model Pago {
 }
 
 model ConfigSistema {
-  id              String @id @default("global")
-  clasesGracia    Int    @default(2)
-  diaVencimiento  Int    @default(5)
-  clasesUnaVez    Int    @default(5)
-  clasesDosVeces  Int    @default(9)
-  clasesTresVeces Int    @default(13)
-  clasesLibre     Int    @default(30)
-  tiempoVerde     Int    @default(4)
-  tiempoAmarillo  Int    @default(5)
-  tiempoRojo      Int    @default(6)
-  codigosComodin  String @default("00000000,99999999")
+  id               String    @id @default("global")
+  clasesGracia     Int       @default(2)
+  diaVencimiento   Int       @default(5)
+  clasesUnaVez     Int       @default(5)
+  clasesDosVeces   Int       @default(9)
+  clasesTresVeces  Int       @default(13)
+  clasesLibre      Int       @default(30)
+  tiempoVerde      Int       @default(4)
+  tiempoAmarillo   Int       @default(5)
+  tiempoRojo       Int       @default(6)
+  codigosComodin   String    @default("00000000,99999999")
+  ultimaRenovacion DateTime?
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDebounce } from '@/hooks/use-debounce';
 import { Search, Plus, DollarSign, Check, X, Trash2, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ interface NuevaInscripcionForm {
 export function ClasesPagosPage() {
   const token = useAuthStore((s) => s.token);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search);
   const [filterActividad, setFilterActividad] = useState('all');
   const [page, setPage] = useState(1);
 
@@ -79,7 +81,7 @@ export function ClasesPagosPage() {
   }
 
   const params = new URLSearchParams();
-  if (search) params.set('search', search);
+  if (debouncedSearch) params.set('search', debouncedSearch);
   if (filterActividad !== 'all') params.set('actividadId', filterActividad);
   params.set('page', String(page));
   params.set('limit', '20');
