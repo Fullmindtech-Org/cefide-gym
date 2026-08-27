@@ -36,6 +36,9 @@ export interface Alumno {
   apellido: string;
   telefono?: string | null;
   direccion?: string | null;
+  fechaNacimiento?: string | null;
+  fechaIngreso?: string | null;
+  observaciones?: string | null;
   activo: boolean;
   inscripciones?: InscripcionActividad[];
   creadoEn: string;
