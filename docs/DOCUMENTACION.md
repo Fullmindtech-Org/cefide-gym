@@ -138,7 +138,7 @@ Mientras sea > 0, deja pasar sin pago. El conteo es por **mes calendario** (desd
 - Crea `Ingreso(estado, molinete)`.
 - Si `estado != ROJO` y hay inscripción → `clasesUsadas += 1` (descuenta clase), dentro de una transacción.
 
-Apertura del molinete: el **frontend** hace `POST http://127.0.0.1:3001/proxy/<nombre>/abrir` directamente al Go driver local. El backend en la nube no alcanza los molinetes; el driver da el pulso al hardware (PCA150, 500 ms). El endpoint `/molinete/:num/contingencia` del backend solo deja registro en la base de datos.
+Apertura del molinete: el **frontend** hace `GET http://127.0.0.1:8080/proxy/<nombre>/abrir` directamente al GymProxy local instalado en la PC del kiosco. El backend en la nube no alcanza los molinetes; el proxy reenvía la orden al hardware. El endpoint `/molinete/:num/contingencia` del backend solo deja registro en la base de datos.
 
 **Contingencia:** `POST /molinete/:num/contingencia` abre manualmente desde el admin. `GET /molinete/:num/status` chequea si el driver responde.
 

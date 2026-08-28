@@ -19,7 +19,7 @@ const API_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
  *
  * El front pega a `${driverBase}/proxy/<molineteN>/<ruta-esp>`.
  */
-const DRIVER_URL = (import.meta.env.VITE_DRIVER_URL ?? 'http://127.0.0.1:3001').replace(/\/$/, '');
+const DRIVER_URL = (import.meta.env.VITE_DRIVER_URL ?? 'http://127.0.0.1:8080').replace(/\/$/, '');
 
 /** Ruta en la ESP para abrir (último segmento del proxy). Ajustable si la ESP usa otra. */
 const MOLINETE_OPEN_PATH = (import.meta.env.VITE_MOLINETE_OPEN_PATH ?? 'abrir').replace(/^\//, '');
@@ -27,8 +27,8 @@ const MOLINETE_OPEN_PATH = (import.meta.env.VITE_MOLINETE_OPEN_PATH ?? 'abrir').
 /** Ruta en la ESP para consultar estado. */
 const MOLINETE_STATUS_PATH = (import.meta.env.VITE_MOLINETE_STATUS_PATH ?? 'estado').replace(/^\//, '');
 
-/** Método HTTP para la apertura. El GymProxy local requiere POST. */
-const MOLINETE_OPEN_METHOD = (import.meta.env.VITE_MOLINETE_OPEN_METHOD ?? 'POST').toUpperCase();
+/** Método HTTP para la apertura del GymProxy instalado en producción. */
+const MOLINETE_OPEN_METHOD = (import.meta.env.VITE_MOLINETE_OPEN_METHOD ?? 'GET').toUpperCase();
 
 /**
  * Cantidad de molinetes que maneja el sistema. La vista admin de contingencia
