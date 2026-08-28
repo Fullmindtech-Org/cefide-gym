@@ -138,7 +138,7 @@ Mientras sea > 0, deja pasar sin pago. El conteo es por **mes calendario** (desd
 - Crea `Ingreso(estado, molinete)`.
 - Si `estado != ROJO` y hay inscripción → `clasesUsadas += 1` (descuenta clase), dentro de una transacción.
 
-Apertura del molinete: el **frontend** hace `POST http://127.0.0.1:3001/proxy/<nombre>/abrir` con `X-Driver-Secret` directamente al Go driver local. El backend en la nube no alcanza los molinetes; el driver da el pulso al hardware (PCA150, 500 ms). El endpoint `/molinete/:num/contingencia` del backend solo deja registro en la base de datos.
+Apertura del molinete: el **frontend** hace `POST http://127.0.0.1:3001/proxy/<nombre>/abrir` directamente al Go driver local. El backend en la nube no alcanza los molinetes; el driver da el pulso al hardware (PCA150, 500 ms). El endpoint `/molinete/:num/contingencia` del backend solo deja registro en la base de datos.
 
 **Contingencia:** `POST /molinete/:num/contingencia` abre manualmente desde el admin. `GET /molinete/:num/status` chequea si el driver responde.
 
@@ -243,7 +243,7 @@ docker compose up -d              # prender (sin rebuild)
 
 **Login dev:** credenciales definidas en `ADMIN_EMAIL` / `ADMIN_PASSWORD` del `.env` (ver `.env.example`).
 
-Variables clave (`.env` raíz + `apps/backend/.env`): `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CORS_ORIGIN`, `DRIVER_SECRET`, `DEFAULT_CLASES_GRACIA`, `DEFAULT_DIA_VENCIMIENTO`.
+Variables clave (`.env` raíz + `apps/backend/.env`): `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CORS_ORIGIN`, `DEFAULT_CLASES_GRACIA`, `DEFAULT_DIA_VENCIMIENTO`.
 
 > Las vars `COM_PORT_MOLINETE_*`, `COM_SERVICE_URL_*` y `COM_PULSE_MS` pertenecen al **go-driver** (configuradas en su `config.json`), no al backend.
 

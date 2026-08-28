@@ -36,9 +36,6 @@ const MOLINETE_OPEN_METHOD = (import.meta.env.VITE_MOLINETE_OPEN_METHOD ?? 'POST
  */
 const MOLINETE_COUNT = Math.max(1, parseInt(import.meta.env.VITE_MOLINETE_COUNT ?? '2', 10) || 2);
 
-/** Token compartido con el driver local. Se envía como X-Driver-Secret (C1). */
-const DRIVER_SECRET = import.meta.env.VITE_DRIVER_SECRET ?? '';
-
 export const config = {
   /** Endpoint base del API (incluye el prefijo `/api`). */
   apiBase: `${API_URL}/api`,
@@ -52,6 +49,4 @@ export const config = {
   molineteOpenMethod: MOLINETE_OPEN_METHOD,
   /** Cantidad de molinetes del sistema. */
   molineteCount: MOLINETE_COUNT,
-  /** Secret compartido con el driver local (C1). */
-  driverSecret: DRIVER_SECRET,
 } as const;

@@ -52,7 +52,6 @@ type Config struct {
 	HTTPPort    int                      `json:"http_port"`
 	AllowOrigin string                   `json:"allow_origin"`
 	TimeoutMs   int                      `json:"timeout_ms"`
-	Secret      string                   `json:"secret"` // X-Driver-Secret (C1)
 	Targets     map[string]*TargetConfig `json:"targets"`
 
 	// Backward-compat single-target fields (used only if Targets is absent)
@@ -251,23 +250,9 @@ func withCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", cfg.AllowOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Driver-Secret")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next(w, r)
-	}
-}
-
-// withSecret validates the X-Driver-Secret header (C1).
-// If Secret is empty, logs a warning but allows the request.
-func withSecret(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if cfg.Secret == "" {
-			log.Printf("[WARN] secret no configurado — endpoint desprotegido")
-		} else if r.Header.Get("X-Driver-Secret") != cfg.Secret {
-			writeJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "unauthorized"})
 			return
 		}
 		next(w, r)
@@ -329,8 +314,7 @@ func main() {
 	targets = resolveTargets(cfg)
 	initSerialTargets()
 
-	// /proxy/* requires secret; /status is read-only.
-	http.HandleFunc("/proxy/", withCORS(withSecret(handleProxy)))
+	http.HandleFunc("/proxy/", withCORS(handleProxy))
 	http.HandleFunc("/status", withCORS(handleStatus))
 
 	// Bind explícito a 127.0.0.1 — solo el proceso local alcanza este puerto (C1).
