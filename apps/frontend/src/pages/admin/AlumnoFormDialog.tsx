@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Alumno } from '@/types';
 
@@ -88,10 +89,13 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
           token: token!,
         });
       }
+      toast.success(isEdit ? 'Alumno actualizado' : 'Alumno creado');
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar');
+      const msg = err instanceof Error ? err.message : 'Error al guardar';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -189,7 +193,7 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setObservaciones(e.target.value)}
               placeholder="Opcional"
               rows={3}
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex w-full rounded-md border border-cefide-border bg-cefide-surface px-3 py-2 text-sm text-cefide-text placeholder:text-cefide-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cefide-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
 

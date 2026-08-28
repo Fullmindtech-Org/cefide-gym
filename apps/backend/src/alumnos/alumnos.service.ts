@@ -131,7 +131,12 @@ export class AlumnosService {
       throw new ConflictException('Ya existe un alumno con ese DNI');
     }
 
-    return this.prisma.alumno.create({ data: dto });
+    const data = {
+      ...dto,
+      fechaNacimiento: dto.fechaNacimiento ? new Date(dto.fechaNacimiento) : undefined,
+      fechaIngreso: dto.fechaIngreso ? new Date(dto.fechaIngreso) : undefined,
+    };
+    return this.prisma.alumno.create({ data });
   }
 
   async update(id: string, dto: UpdateAlumnoDto) {
@@ -146,7 +151,12 @@ export class AlumnosService {
       }
     }
 
-    return this.prisma.alumno.update({ where: { id }, data: dto });
+    const data = {
+      ...dto,
+      fechaNacimiento: dto.fechaNacimiento ? new Date(dto.fechaNacimiento) : undefined,
+      fechaIngreso: dto.fechaIngreso ? new Date(dto.fechaIngreso) : undefined,
+    };
+    return this.prisma.alumno.update({ where: { id }, data });
   }
 
   async deactivate(id: string) {
