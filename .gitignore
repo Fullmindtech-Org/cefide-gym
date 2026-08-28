@@ -46,3 +46,5 @@ dumps/
 
 # Datos de migración inicial (PII, no commitear)
 migration/
+apps/backend/prisma/contactos-prod.json
+docs/alumnos_version8.csv
