@@ -18,9 +18,24 @@ export interface ReporteInscripcion {
 export class ReportesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async reporteActividad(actividadId?: string): Promise<ReporteInscripcion[]> {
+  async reporteActividad(actividadId?: string, profesorId?: string): Promise<ReporteInscripcion[]> {
     const where: Record<string, unknown> = { alumno: { activo: true } };
-    if (actividadId) where.actividadId = actividadId;
+
+    if (profesorId) {
+      const prof = await this.prisma.profesor.findUnique({
+        where: { id: profesorId },
+        select: { actividades: { select: { id: true } } },
+      });
+      const allowedIds = prof?.actividades.map((a) => a.id) ?? [];
+      if (actividadId) {
+        if (!allowedIds.includes(actividadId)) return [];
+        where.actividadId = actividadId;
+      } else {
+        where.actividadId = { in: allowedIds };
+      }
+    } else if (actividadId) {
+      where.actividadId = actividadId;
+    }
 
     const inscripciones = await this.prisma.inscripcionActividad.findMany({
       where,

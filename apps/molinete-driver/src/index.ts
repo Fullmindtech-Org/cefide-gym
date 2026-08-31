@@ -7,7 +7,6 @@ app.use(express.json());
 const PORT = parseInt(process.env.DRIVER_PORT || '3001', 10);
 const COM_PORT = process.env.COM_PORT || 'COM1';
 const PULSE_MS = parseInt(process.env.COM_PULSE_MS || '500', 10);
-
 /**
  * POST /abrir
  * Envía pulso de 500ms al pin de habilitación de la PCA150
@@ -45,9 +44,10 @@ app.get('/status', (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+// Bind explícito a 127.0.0.1 — solo el proceso local puede alcanzar este puerto (C1).
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`\n=== MOLINETE DRIVER ===`);
-  console.log(`Puerto HTTP:  ${PORT}`);
+  console.log(`Puerto HTTP:  127.0.0.1:${PORT}`);
   console.log(`Puerto COM:   ${COM_PORT}`);
   console.log(`Pulso:        ${PULSE_MS}ms`);
   console.log(`Placa:        DCM PCA150`);

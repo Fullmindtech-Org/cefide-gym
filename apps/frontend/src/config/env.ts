@@ -27,7 +27,7 @@ const MOLINETE_OPEN_PATH = (import.meta.env.VITE_MOLINETE_OPEN_PATH ?? 'abrir').
 /** Ruta en la ESP para consultar estado. */
 const MOLINETE_STATUS_PATH = (import.meta.env.VITE_MOLINETE_STATUS_PATH ?? 'estado').replace(/^\//, '');
 
-/** Método HTTP para la apertura (la ESP del demo abre con GET). */
+/** Método HTTP para la apertura del GymProxy instalado en producción. */
 const MOLINETE_OPEN_METHOD = (import.meta.env.VITE_MOLINETE_OPEN_METHOD ?? 'GET').toUpperCase();
 
 /**

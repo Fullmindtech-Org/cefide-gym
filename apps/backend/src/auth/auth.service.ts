@@ -29,15 +29,16 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    const payload: JwtPayload = {
+    const base: Omit<JwtPayload, 'type'> = {
       sub: usuario.id,
       email: usuario.email,
       rol: usuario.rol,
+      tokenVersion: usuario.tokenVersion,
     };
 
     return {
-      accessToken: this.generateAccessToken(payload),
-      refreshToken: this.generateRefreshToken(payload),
+      accessToken: this.generateAccessToken(base),
+      refreshToken: this.generateRefreshToken(base),
       usuario: {
         id: usuario.id,
         email: usuario.email,
@@ -50,43 +51,66 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string) {
+    let payload: JwtPayload;
     try {
-      const payload = this.jwt.verify<JwtPayload>(refreshToken, {
+      payload = this.jwt.verify<JwtPayload>(refreshToken, {
         secret: this.config.get<string>('JWT_SECRET'),
       });
-
-      const usuario = await this.prisma.usuario.findUnique({
-        where: { id: payload.sub },
-      });
-
-      if (!usuario) {
-        throw new UnauthorizedException();
-      }
-
-      const newPayload: JwtPayload = {
-        sub: usuario.id,
-        email: usuario.email,
-        rol: usuario.rol,
-      };
-
-      return {
-        accessToken: this.generateAccessToken(newPayload),
-        refreshToken: this.generateRefreshToken(newPayload),
-      };
     } catch {
       throw new UnauthorizedException('Refresh token inválido');
     }
+
+    // A1: solo refresh tokens pueden refrescar.
+    if (payload.type !== 'refresh') {
+      throw new UnauthorizedException('Tipo de token inválido');
+    }
+
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: payload.sub },
+    });
+
+    if (!usuario) {
+      throw new UnauthorizedException('Refresh token inválido');
+    }
+
+    // C3: verifica que el token no haya sido revocado.
+    if (payload.tokenVersion !== usuario.tokenVersion) {
+      throw new UnauthorizedException('Sesión revocada');
+    }
+
+    const base: Omit<JwtPayload, 'type'> = {
+      sub: usuario.id,
+      email: usuario.email,
+      rol: usuario.rol,
+      tokenVersion: usuario.tokenVersion,
+    };
+
+    return {
+      accessToken: this.generateAccessToken(base),
+      refreshToken: this.generateRefreshToken(base),
+    };
   }
 
-  private generateAccessToken(payload: JwtPayload): string {
-    return this.jwt.sign({ ...payload }, {
-      expiresIn: this.config.get<string>('JWT_EXPIRES_IN', '7d') as any,
+  /** Invalida todas las sesiones activas del usuario incrementando tokenVersion. */
+  async logout(userId: string) {
+    await this.prisma.usuario.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
     });
+    return { message: 'Sesión cerrada' };
   }
 
-  private generateRefreshToken(payload: JwtPayload): string {
-    return this.jwt.sign({ ...payload }, {
-      expiresIn: '30d' as any,
-    });
+  private generateAccessToken(base: Omit<JwtPayload, 'type'>): string {
+    return this.jwt.sign(
+      { ...base, type: 'access' } satisfies JwtPayload,
+      { expiresIn: this.config.get<string>('JWT_EXPIRES_IN', '7d') as any },
+    );
+  }
+
+  private generateRefreshToken(base: Omit<JwtPayload, 'type'>): string {
+    return this.jwt.sign(
+      { ...base, type: 'refresh' } satisfies JwtPayload,
+      { expiresIn: '30d' as any },
+    );
   }
 }

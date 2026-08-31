@@ -53,8 +53,11 @@ export class AlumnosController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.alumnosService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.alumnosService.findOne(
+      id,
+      user.rol === Rol.PROFESOR ? (user.profesorId ?? '__none__') : undefined,
+    );
   }
 
   @Post()

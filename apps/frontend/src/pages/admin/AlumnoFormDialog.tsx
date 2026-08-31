@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Alumno } from '@/types';
 
@@ -27,6 +28,9 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
   const [apellido, setApellido] = useState('');
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
+  const [fechaNacimiento, setFechaNacimiento] = useState('');
+  const [fechaIngreso, setFechaIngreso] = useState('');
+  const [observaciones, setObservaciones] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -39,12 +43,18 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
       setApellido(alumno.apellido);
       setTelefono(alumno.telefono ?? '');
       setDireccion(alumno.direccion ?? '');
+      setFechaNacimiento(alumno.fechaNacimiento ? alumno.fechaNacimiento.slice(0, 10) : '');
+      setFechaIngreso(alumno.fechaIngreso ? alumno.fechaIngreso.slice(0, 10) : '');
+      setObservaciones(alumno.observaciones ?? '');
     } else {
       setDni('');
       setNombre('');
       setApellido('');
       setTelefono('');
       setDireccion('');
+      setFechaNacimiento('');
+      setFechaIngreso('');
+      setObservaciones('');
     }
     setError('');
   }, [alumno, open]);
@@ -58,8 +68,11 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
       dni,
       nombre,
       apellido,
-      telefono: telefono.trim(),
-      direccion: direccion.trim(),
+      telefono: telefono.trim() || undefined,
+      direccion: direccion.trim() || undefined,
+      fechaNacimiento: fechaNacimiento || undefined,
+      fechaIngreso: fechaIngreso || undefined,
+      observaciones: observaciones.trim() || undefined,
     };
 
     try {
@@ -76,10 +89,13 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
           token: token!,
         });
       }
+      toast.success(isEdit ? 'Alumno actualizado' : 'Alumno creado');
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar');
+      const msg = err instanceof Error ? err.message : 'Error al guardar';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -146,6 +162,39 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
                 placeholder="Opcional"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="fechaNacimiento">Fecha de nacimiento</Label>
+              <Input
+                id="fechaNacimiento"
+                type="date"
+                value={fechaNacimiento}
+                onChange={(e) => setFechaNacimiento(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fechaIngreso">Fecha de ingreso</Label>
+              <Input
+                id="fechaIngreso"
+                type="date"
+                value={fechaIngreso}
+                onChange={(e) => setFechaIngreso(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="observaciones">Observaciones</Label>
+            <textarea
+              id="observaciones"
+              value={observaciones}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setObservaciones(e.target.value)}
+              placeholder="Opcional"
+              rows={3}
+              className="flex w-full rounded-md border border-cefide-border bg-cefide-surface px-3 py-2 text-sm text-cefide-text placeholder:text-cefide-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cefide-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            />
           </div>
 
           {error && <p className="text-sm text-cefide-accent-alt">{error}</p>}

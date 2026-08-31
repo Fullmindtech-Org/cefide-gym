@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { AlumnosModule } from './alumnos/alumnos.module';
@@ -21,6 +23,9 @@ import { HealthController } from './health.controller';
       envFilePath: '../../.env',
     }),
     ScheduleModule.forRoot(),
+    // Rate limiting global: 100 req/min por IP como base.
+    // /auth/login y /acceso/* tienen límites más estrictos con @Throttle().
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
     AuthModule,
     AlumnosModule,
@@ -34,5 +39,6 @@ import { HealthController } from './health.controller';
     ConfigSistemaModule,
   ],
   controllers: [HealthController],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

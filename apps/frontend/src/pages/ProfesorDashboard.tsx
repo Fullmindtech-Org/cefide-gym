@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDebounce } from '@/hooks/use-debounce';
 import { Search, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
@@ -14,9 +15,10 @@ export function ProfesorDashboard() {
   const { usuario, logout } = useAuthStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search);
 
   const params = new URLSearchParams();
-  if (search) params.set('search', search);
+  if (debouncedSearch) params.set('search', debouncedSearch);
   params.set('limit', '50');
 
   const { data } = useApiGet<PaginatedResponse<Alumno>>(

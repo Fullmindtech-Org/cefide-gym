@@ -30,6 +30,14 @@ export interface DriverStatus {
   error?: string;
 }
 
+const CONNECTION_ERROR = 'No se puede conectar con el molinete';
+
+function httpError(status: number): string {
+  if (status === 404) return 'El molinete no reconoce la operación solicitada';
+  if (status === 405) return 'El molinete no permite esta operación';
+  return 'El molinete no pudo completar la operación';
+}
+
 /** Nombre de target en el config.json de GymProxy. */
 function targetName(molineteId: number): string {
   return `molinete${molineteId}`;
@@ -43,10 +51,10 @@ export async function abrirMolineteLocal(molineteId: number): Promise<DriverResu
       method: config.molineteOpenMethod,
       signal: AbortSignal.timeout(5000),
     });
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    if (!res.ok) return { ok: false, error: httpError(res.status) };
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'sin conexión' };
+  } catch {
+    return { ok: false, error: CONNECTION_ERROR };
   }
 }
 
@@ -55,10 +63,11 @@ export async function statusMolineteLocal(molineteId: number): Promise<DriverSta
   try {
     const url = `${DRIVER}/proxy/${targetName(molineteId)}/${config.molineteStatusPath}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-    const data = (await res.json()) as { estado?: string; online?: boolean };
+    if (!res.ok) return { ok: false, error: CONNECTION_ERROR };
+    const data = (await res.json()) as { ok?: boolean; estado?: string; online?: boolean };
+    if (data.ok === false) return { ok: false, online: data.online, error: CONNECTION_ERROR };
     return { ok: true, estado: data.estado, online: data.online };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'No responde' };
+  } catch {
+    return { ok: false, error: CONNECTION_ERROR };
   }
 }

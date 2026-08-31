@@ -35,6 +35,9 @@ COPY --from=builder /app/apps/backend/package.json ./apps/backend/package.json
 
 WORKDIR /app/apps/backend
 
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 3000
 
 CMD ["node", "dist/main"]
