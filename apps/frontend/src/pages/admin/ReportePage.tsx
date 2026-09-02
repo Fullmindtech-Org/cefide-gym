@@ -14,6 +14,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { config } from '@/config/env';
 import { FRECUENCIA_LABEL } from '@/types';
 import type { Actividad } from '@/types';
+import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
 
 interface ReporteInscripcion {
   dni: string;
@@ -28,12 +29,13 @@ interface ReporteInscripcion {
   fechaPago: string | null;
 }
 
-const PAGE_SIZE = 20;
-
 export function ReportePage() {
   const token = useAuthStore((s) => s.token);
   const [filterActividad, setFilterActividad] = useState('all');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [sortBy, setSortBy] = useState('nombre');
+  const [sortOrder, setSortOrder] = useState<SortDirection>('asc');
 
   const { data: actividades } = useApiGet<Actividad[]>('/actividades');
 
@@ -45,8 +47,24 @@ export function ReportePage() {
   );
 
   const total = data?.length ?? 0;
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const paginated = data?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) ?? [];
+  function handleSort(field: string) {
+    setSortOrder((current) => sortBy === field && current === 'asc' ? 'desc' : 'asc');
+    setSortBy(field);
+    setPage(1);
+  }
+  const sorted = [...(data ?? [])].sort((a, b) => {
+    const estado = (item: ReporteInscripcion) => item.pagado && item.clasesRestantes > 0 ? 2 : !item.pagado && item.clasesRestantes > 0 ? 1 : 0;
+    const values: Record<string, [string | number | boolean, string | number | boolean]> = {
+      dni: [a.dni, b.dni], nombre: [`${a.apellido} ${a.nombre}`, `${b.apellido} ${b.nombre}`], actividad: [a.actividad, b.actividad],
+      frecuencia: [a.frecuencia, b.frecuencia], realizadas: [a.clasesUsadas, b.clasesUsadas], restantes: [a.clasesRestantes, b.clasesRestantes],
+      pago: [a.pagado, b.pagado], estado: [estado(a), estado(b)],
+    };
+    const [left, right] = values[sortBy] ?? values.nombre;
+    const result = typeof left === 'string' ? left.localeCompare(String(right), 'es') : Number(left) - Number(right);
+    return sortOrder === 'asc' ? result : -result;
+  });
+  const totalPages = Math.ceil(total / pageSize);
+  const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   function handleExportCsv() {
     const csvParams = new URLSearchParams();
@@ -98,14 +116,14 @@ export function ReportePage() {
         <table className="w-full text-sm">
           <thead className="bg-cefide-surface">
             <tr className="border-b border-cefide-border">
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">DNI</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Nombre</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Actividad</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Frecuencia</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Realizadas</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Restantes</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Pago</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Estado</th>
+              <SortableHeader label="DNI" field="dni" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Nombre" field="nombre" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Actividad" field="actividad" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Frecuencia" field="frecuencia" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
+              <SortableHeader label="Realizadas" field="realizadas" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
+              <SortableHeader label="Restantes" field="restantes" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
+              <SortableHeader label="Pago" field="pago" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
+              <SortableHeader label="Estado" field="estado" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
             </tr>
           </thead>
           <tbody>
@@ -136,18 +154,7 @@ export function ReportePage() {
         </table>
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-cefide-muted">
-          {total} inscripcion{total !== 1 ? 'es' : ''}
-        </p>
-        {totalPages > 1 && (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
-            <span className="flex items-center px-3 text-sm text-cefide-muted">{page} / {totalPages}</span>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente</Button>
-          </div>
-        )}
-      </div>
+      {data && <PaginationControls page={page} totalPages={totalPages} total={total} pageSize={pageSize} itemLabel="inscripción" pluralLabel="inscripciones" onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />}
     </div>
   );
 }

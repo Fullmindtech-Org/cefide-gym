@@ -5139,7 +5139,7 @@ async function main() {
     update: {},
     create: {
       id: 'global',
-      clasesGracia: 3,
+      clasesGracia: 5,
       diaVencimiento: 5,
       clasesUnaVez: 5,
       clasesDosVeces: 9,
@@ -5148,6 +5148,7 @@ async function main() {
       tiempoVerde: 4,
       tiempoAmarillo: 5,
       tiempoRojo: 6,
+      reingresoVentanaMinutos: 180,
       codigosComodin: '00000000,99999999',
     },
   });

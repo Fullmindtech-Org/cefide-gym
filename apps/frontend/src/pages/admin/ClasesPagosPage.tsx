@@ -23,6 +23,7 @@ import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Actividad, Alumno, InscripcionActividad, PaginatedResponse } from '@/types';
 import { FRECUENCIA_LABEL as FL } from '@/types';
+import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
 
 interface InscripcionFlat extends InscripcionActividad {
   alumno: { id: string; dni: string; nombre: string; apellido: string; activo: boolean };
@@ -40,6 +41,13 @@ export function ClasesPagosPage() {
   const debouncedSearch = useDebounce(search);
   const [filterActividad, setFilterActividad] = useState('all');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [sortBy, setSortBy] = useState('alumno');
+  const [sortOrder, setSortOrder] = useState<SortDirection>('asc');
+  const [pagoDialog, setPagoDialog] = useState<InscripcionFlat | null>(null);
+  const [pagoSaving, setPagoSaving] = useState(false);
+  const [pagoSuccess, setPagoSuccess] = useState(false);
+  const [pagoError, setPagoError] = useState('');
 
   // Clases sueltas dialog
   const [clasesDialog, setClasesDialog] = useState<string | null>(null);
@@ -87,19 +95,51 @@ export function ClasesPagosPage() {
   if (debouncedSearch) params.set('search', debouncedSearch);
   if (filterActividad !== 'all') params.set('actividadId', filterActividad);
   params.set('page', String(page));
-  params.set('limit', '20');
+  params.set('limit', String(pageSize));
+  params.set('sortBy', sortBy);
+  params.set('sortOrder', sortOrder);
+
+  function handleSort(field: string) {
+    setSortOrder((current) => sortBy === field && current === 'asc' ? 'desc' : 'asc');
+    setSortBy(field);
+    setPage(1);
+  }
 
   const { data, mutate } = useApiGet<PaginatedResponse<InscripcionFlat>>(
     `/inscripciones?${params.toString()}`,
   );
 
-  async function handleTogglePago(ins: InscripcionFlat) {
-    await api(`/inscripciones/${ins.id}/pagar`, {
-      method: 'PATCH',
-      body: JSON.stringify({ pagado: !ins.pagado }),
-      token: token!,
-    });
-    mutate();
+  function abrirPago(ins: InscripcionFlat) {
+    setPagoDialog(ins);
+    setPagoSuccess(false);
+    setPagoError('');
+  }
+
+  function cerrarPago() {
+    if (pagoSaving) return;
+    setPagoDialog(null);
+    setPagoSuccess(false);
+    setPagoError('');
+  }
+
+  async function confirmarPago() {
+    if (!pagoDialog) return;
+    const nuevoEstado = !pagoDialog.pagado;
+    setPagoSaving(true);
+    setPagoError('');
+    try {
+      await api(`/inscripciones/${pagoDialog.id}/pagar`, {
+        method: 'PATCH',
+        body: JSON.stringify({ pagado: nuevoEstado }),
+        token: token!,
+      });
+      await mutate();
+      setPagoSuccess(true);
+    } catch (err) {
+      setPagoError(err instanceof Error ? err.message : 'No se pudo actualizar el cobro');
+    } finally {
+      setPagoSaving(false);
+    }
   }
 
   async function handleAgregarClases() {
@@ -211,13 +251,13 @@ export function ClasesPagosPage() {
         <table className="w-full text-sm">
           <thead className="bg-cefide-surface">
             <tr className="border-b border-cefide-border">
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">DNI</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Alumno</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Actividad</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Frecuencia</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Clases</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Pago</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Estado</th>
+              <SortableHeader label="DNI" field="dni" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Alumno" field="alumno" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Actividad" field="actividad" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Frecuencia" field="frecuencia" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
+              <SortableHeader label="Clases" field="clases" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
+              <SortableHeader label="Pago" field="pago" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
+              <SortableHeader label="Estado" field="estado" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <th className="px-4 py-3 text-right font-medium text-cefide-muted">Acciones</th>
             </tr>
           </thead>
@@ -259,7 +299,7 @@ export function ClasesPagosPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleTogglePago(ins)}
+                      onClick={() => abrirPago(ins)}
                     >
                       <DollarSign className="mr-1 h-3 w-3" />
                       {ins.pagado ? 'Anular' : 'Cobrar'}
@@ -287,16 +327,41 @@ export function ClasesPagosPage() {
         </table>
       </div>
 
-      {data && data.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-cefide-muted">{data.total} inscripcion{data.total !== 1 ? 'es' : ''}</p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
-            <span className="flex items-center px-3 text-sm text-cefide-muted">{page} / {data.totalPages}</span>
-            <Button variant="outline" size="sm" disabled={page >= data.totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente</Button>
-          </div>
-        </div>
-      )}
+      {data && <PaginationControls page={page} totalPages={data.totalPages} total={data.total} pageSize={pageSize} itemLabel="inscripción" pluralLabel="inscripciones" onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />}
+
+      <Dialog open={!!pagoDialog} onOpenChange={(open) => !open && cerrarPago()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{pagoDialog?.pagado ? 'Confirmar anulación de cobro' : 'Confirmar cobro de actividad'}</DialogTitle>
+          </DialogHeader>
+          {pagoDialog && (pagoSuccess ? (
+            <div className="space-y-4">
+              <div className="rounded-md border border-cefide-success/30 bg-cefide-success/10 p-4 text-cefide-success">
+                <p className="font-medium">{pagoDialog.pagado ? 'Cobro anulado correctamente' : 'Cobro registrado correctamente'}</p>
+                <p className="mt-1 text-sm">{pagoDialog.alumno.apellido}, {pagoDialog.alumno.nombre} — {pagoDialog.actividad.nombre}</p>
+              </div>
+              <div className="flex justify-end"><Button onClick={cerrarPago}>Cerrar</Button></div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-md border border-cefide-border bg-cefide-surface p-4 text-sm space-y-2">
+                <p><span className="text-cefide-muted">Alumno:</span> {pagoDialog.alumno.apellido}, {pagoDialog.alumno.nombre}</p>
+                <p><span className="text-cefide-muted">DNI:</span> <span className="font-mono">{pagoDialog.alumno.dni}</span></p>
+                <p><span className="text-cefide-muted">Actividad:</span> {pagoDialog.actividad.nombre}</p>
+                <p><span className="text-cefide-muted">Acción:</span> {pagoDialog.pagado ? 'Anular cobro registrado' : 'Registrar cobro'}</p>
+              </div>
+              {pagoError && <p className="text-sm text-cefide-accent-alt">{pagoError}</p>}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={cerrarPago} disabled={pagoSaving}>Cancelar</Button>
+                <Button onClick={confirmarPago} disabled={pagoSaving}>
+                  <DollarSign className="mr-1 h-4 w-4" />
+                  {pagoSaving ? 'Guardando...' : pagoDialog.pagado ? 'Confirmar anulación' : 'Confirmar cobro'}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </DialogContent>
+      </Dialog>
 
       {/* Clases sueltas dialog */}
       <Dialog open={!!clasesDialog} onOpenChange={(v) => !v && setClasesDialog(null)}>

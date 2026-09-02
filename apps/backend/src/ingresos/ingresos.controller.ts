@@ -25,6 +25,8 @@ export class IngresosController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     return this.ingresosService.findAll({
       desde,
@@ -34,6 +36,8 @@ export class IngresosController {
       search,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 30,
+      sortBy,
+      sortOrder: sortOrder === 'asc' ? 'asc' : 'desc',
       profesorId: user.rol === Rol.PROFESOR ? (user.profesorId ?? '__none__') : undefined,
     });
   }

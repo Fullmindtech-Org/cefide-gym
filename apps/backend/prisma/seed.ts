@@ -52,11 +52,12 @@ async function main() {
     update: {},
     create: {
       id: 'global',
-      clasesGracia: 2,
+      clasesGracia: 5,
       diaVencimiento: 5,
       tiempoVerde: 4,
       tiempoAmarillo: 5,
       tiempoRojo: 6,
+      reingresoVentanaMinutos: 180,
     },
   });
   console.log('✓ ConfigSistema');

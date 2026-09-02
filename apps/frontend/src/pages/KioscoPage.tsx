@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { abrirMolineteLocal } from '@/lib/molinete';
 import { getMolineteId } from '@/lib/molinete-id';
+import { useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 
 type Estado = 'idle' | 'loading_consultar' | 'seleccion' | 'loading_validar' | 'VERDE' | 'AMARILLO' | 'ROJO' | 'error';
 
@@ -33,6 +35,7 @@ interface AccesoResult {
 const TIEMPOS_DEFAULT = { VERDE: 4000, AMARILLO: 5000, ROJO: 6000 };
 
 export function KioscoPage() {
+  const navigate = useNavigate();
   const [dni, setDni] = useState('');
   const [estado, setEstado] = useState<Estado>('idle');
   const [consulta, setConsulta] = useState<ConsultaResult | null>(null);
@@ -43,6 +46,26 @@ export function KioscoPage() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const molinete = useRef(getMolineteId());
   const validatingRef = useRef(false);
+  const exitSequenceRef = useRef<number[]>([]);
+
+  const salirDelKiosco = useCallback(() => {
+    if (window.confirm('¿Salir de la pantalla de kiosco?')) navigate('/login');
+  }, [navigate]);
+
+  // Atajo apto para teclado numérico: presionar * tres veces en dos segundos.
+  useEffect(() => {
+    function handleExitShortcut(e: KeyboardEvent) {
+      if (e.key !== '*' && e.code !== 'NumpadMultiply') return;
+      const now = Date.now();
+      exitSequenceRef.current = [...exitSequenceRef.current.filter((time) => now - time < 2000), now];
+      if (exitSequenceRef.current.length >= 3) {
+        exitSequenceRef.current = [];
+        salirDelKiosco();
+      }
+    }
+    window.addEventListener('keydown', handleExitShortcut);
+    return () => window.removeEventListener('keydown', handleExitShortcut);
+  }, [salirDelKiosco]);
 
   const reset = useCallback(() => {
     setDni('');
@@ -212,6 +235,14 @@ export function KioscoPage() {
     <div
       className={`min-h-screen flex flex-col items-center justify-center transition-colors duration-300 ${bgClass} select-none`}
     >
+      <button
+        type="button"
+        onClick={salirDelKiosco}
+        className="absolute right-4 top-4 flex items-center gap-2 rounded-md px-3 py-2 text-sm text-cefide-muted opacity-60 transition hover:bg-cefide-surface hover:text-cefide-text hover:opacity-100"
+        title="Salir del kiosco (atajo: * * *)"
+      >
+        <LogOut className="h-4 w-4" /> Salir
+      </button>
       {/* IDLE / LOADING — Input screen */}
       {(isIdle || isLoading) && (
         <div className="text-center space-y-8 w-full max-w-lg px-8">

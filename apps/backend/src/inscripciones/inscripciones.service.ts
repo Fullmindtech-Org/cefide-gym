@@ -6,12 +6,15 @@ import {
 import { Frecuencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
+import { buildAlumnoSearch } from '../common/alumno-search';
 
 interface FindAllParams {
   search?: string;
   actividadId?: string;
   page?: number;
   limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
   profesorId?: string;
 }
 
@@ -33,7 +36,7 @@ export class InscripcionesService {
   }
 
   async findAll(params: FindAllParams) {
-    const { search, actividadId, page = 1, limit = 20, profesorId } = params;
+    const { search, actividadId, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
@@ -56,17 +59,16 @@ export class InscripcionesService {
       where.actividadId = actividadId;
     }
 
-    if (search) {
-      where.alumno = {
-        OR: [
-          { dni: { contains: search } },
-          { nombre: { contains: search, mode: 'insensitive' } },
-          { apellido: { contains: search, mode: 'insensitive' } },
-          { telefono: { contains: search, mode: 'insensitive' } },
-          { direccion: { contains: search, mode: 'insensitive' } },
-        ],
-      };
-    }
+    const alumnoSearch = buildAlumnoSearch(search);
+    if (alumnoSearch) where.alumno = alumnoSearch;
+
+    const orderBy = sortBy === 'dni' ? { alumno: { dni: sortOrder } }
+      : sortBy === 'alumno' ? [{ alumno: { apellido: sortOrder } }, { alumno: { nombre: sortOrder } }]
+      : sortBy === 'actividad' ? { actividad: { nombre: sortOrder } }
+      : sortBy === 'frecuencia' ? { frecuencia: sortOrder }
+      : sortBy === 'clases' ? { clasesUsadas: sortOrder }
+      : sortBy === 'pago' || sortBy === 'estado' ? { pagado: sortOrder }
+      : [{ alumno: { apellido: 'asc' as const } }, { actividad: { nombre: 'asc' as const } }];
 
     const [data, total] = await Promise.all([
       this.prisma.inscripcionActividad.findMany({
@@ -77,7 +79,7 @@ export class InscripcionesService {
           },
           actividad: { select: { id: true, nombre: true } },
         },
-        orderBy: [{ alumno: { apellido: 'asc' } }, { actividad: { nombre: 'asc' } }],
+        orderBy,
         skip,
         take: limit,
       }),

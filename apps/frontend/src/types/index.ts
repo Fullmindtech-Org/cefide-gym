@@ -66,6 +66,7 @@ export interface ConfigSistema {
   tiempoVerde: number;
   tiempoAmarillo: number;
   tiempoRojo: number;
+  reingresoVentanaMinutos: number;
   codigosComodin: string;
 }
 
