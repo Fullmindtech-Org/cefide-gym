@@ -23,7 +23,6 @@ RUN rm -f tsconfig.build.tsbuildinfo && pnpm run build
 FROM node:20-alpine AS runner
 
 RUN apk add --no-cache openssl
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 WORKDIR /app
 

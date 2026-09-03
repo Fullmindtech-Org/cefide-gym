@@ -2,6 +2,9 @@
   "name": "backend",
   "version": "1.0.0",
   "private": true,
+  "prisma": {
+    "seed": "ts-node prisma/seed-faltantes.ts"
+  },
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
@@ -11,7 +14,6 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "seed:faltantes": "ts-node prisma/seed-faltantes.ts",
     "prisma:studio": "prisma studio",
     "migrate:v8": "ts-node prisma/migracion/migrate.ts"
   },
