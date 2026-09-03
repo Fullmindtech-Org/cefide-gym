@@ -49,3 +49,4 @@ dumps/
 migration/
 apps/backend/prisma/contactos-prod.json
 docs/alumnos_version8.csv
+docs/informe-seed-faltantes-local.md
