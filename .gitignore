@@ -1,11 +1,11 @@
 # Dependencies
 node_modules/
-.pnpm-store/
 
+.pnpm-store/
 # Build
 dist/
 build/
-
+lis
 # Environment
 .env
 .env.local
@@ -14,7 +14,7 @@ build/
 # IDE
 .vscode/
 .idea/
-*.swp
+*.s wp
 *.swo
 
 # OS
@@ -26,7 +26,7 @@ apps/backend/prisma/migrations/*.sql.bak
 
 # Migration data (real data, not examples)
 apps/backend/prisma/migracion/data/alumnos.csv
-apps/backend/prisma/migracion/data/profesores.csv
+apps/backend/prisma/migracion/data/profesores.csvnot
 
 # Docker
 pgdata/
@@ -35,9 +35,9 @@ docker-compose.override.yml
 # Logs
 *.log
 npm-debug.log*
-pnpm-debug.log*
+pnpm-debug
 
-# Coverage
+    # Coverage
 coverage/
 
 # DB dumps (datos sensibles, nunca commitear)
@@ -46,5 +46,4 @@ dumps/
 
 # Datos de migración inicial (PII, no commitear)
 migration/
-apps/backend/prisma/contactos-prod.json
-docs/alumnos_version8.csv
+apps/backend/prisma/contactos-prod.jsodocs/alumnos_version8.csv revisar
