@@ -7,6 +7,7 @@ import { useApiGet } from '@/hooks/use-api';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import type { PaginatedResponse } from '@/types';
+import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
 
 interface Pago {
   id: string;
@@ -26,13 +27,24 @@ export function PagosLogPage() {
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [sortBy, setSortBy] = useState('fecha');
+  const [sortOrder, setSortOrder] = useState<SortDirection>('desc');
 
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (desde) params.set('desde', desde);
   if (hasta) params.set('hasta', hasta);
   params.set('page', String(page));
-  params.set('limit', '20');
+  params.set('limit', String(pageSize));
+  params.set('sortBy', sortBy);
+  params.set('sortOrder', sortOrder);
+
+  function handleSort(field: string) {
+    setSortOrder((current) => sortBy === field && current === 'asc' ? 'desc' : 'asc');
+    setSortBy(field);
+    setPage(1);
+  }
 
   const { data, mutate } = useApiGet<PaginatedResponse<Pago>>(
     `/reportes/pagos?${params.toString()}`,
@@ -92,10 +104,10 @@ export function PagosLogPage() {
         <table className="w-full text-sm">
           <thead className="bg-cefide-surface">
             <tr className="border-b border-cefide-border">
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Fecha</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">DNI</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Alumno</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Tipo</th>
+              <SortableHeader label="Fecha" field="fecha" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="DNI" field="dni" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Alumno" field="alumno" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Tipo" field="tipo" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <th className="px-4 py-3 text-right font-medium text-cefide-muted">Acciones</th>
             </tr>
           </thead>
@@ -138,24 +150,7 @@ export function PagosLogPage() {
         </table>
       </div>
 
-      {data && data.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-cefide-muted">
-            {data.total} registro{data.total !== 1 ? 's' : ''}
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Anterior
-            </Button>
-            <span className="flex items-center px-3 text-sm text-cefide-muted">
-              {page} / {data.totalPages}
-            </span>
-            <Button variant="outline" size="sm" disabled={page >= data.totalPages} onClick={() => setPage((p) => p + 1)}>
-              Siguiente
-            </Button>
-          </div>
-        </div>
-      )}
+      {data && <PaginationControls page={page} totalPages={data.totalPages} total={data.total} pageSize={pageSize} itemLabel="registro" onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />}
     </div>
   );
 }

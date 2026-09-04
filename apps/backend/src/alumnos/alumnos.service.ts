@@ -8,12 +8,15 @@ import { Frecuencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAlumnoDto } from './dto/create-alumno.dto';
 import { UpdateAlumnoDto } from './dto/update-alumno.dto';
+import { buildAlumnoSearch } from '../common/alumno-search';
 
 interface FindAllParams {
   search?: string;
   activo?: boolean;
   page?: number;
   limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
   /** Si viene, limita los alumnos/inscripciones a las actividades de este profesor. */
   profesorId?: string;
 }
@@ -37,20 +40,13 @@ export class AlumnosService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(params: FindAllParams) {
-    const { search, activo, page = 1, limit = 20, profesorId } = params;
+    const { search, activo, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
 
-    if (search) {
-      where.OR = [
-        { dni: { contains: search } },
-        { nombre: { contains: search, mode: 'insensitive' } },
-        { apellido: { contains: search, mode: 'insensitive' } },
-        { telefono: { contains: search, mode: 'insensitive' } },
-        { direccion: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+    const alumnoSearch = buildAlumnoSearch(search);
+    if (alumnoSearch) Object.assign(where, alumnoSearch);
 
     if (activo !== undefined) {
       where.activo = activo;
@@ -73,10 +69,16 @@ export class AlumnosService {
       ...(actividadIds ? { where: { actividadId: { in: actividadIds } } } : {}),
     } as const;
 
+    const orderBy = sortBy === 'dni' ? { dni: sortOrder }
+      : sortBy === 'nombre' ? [{ apellido: sortOrder }, { nombre: sortOrder }]
+      : sortBy === 'telefono' ? { telefono: sortOrder }
+      : sortBy === 'activo' ? { activo: sortOrder }
+      : { apellido: 'asc' as const };
+
     const [data, total] = await Promise.all([
       this.prisma.alumno.findMany({
         where,
-        orderBy: { apellido: 'asc' },
+        orderBy,
         skip,
         take: limit,
         include: { inscripciones: inscripcionesInclude },

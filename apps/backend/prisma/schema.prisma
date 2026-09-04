@@ -132,7 +132,7 @@ model Pago {
 
 model ConfigSistema {
   id               String    @id @default("global")
-  clasesGracia     Int       @default(2)
+  clasesGracia     Int       @default(5)
   diaVencimiento   Int       @default(5)
   clasesUnaVez     Int       @default(5)
   clasesDosVeces   Int       @default(9)
@@ -141,6 +141,7 @@ model ConfigSistema {
   tiempoVerde      Int       @default(4)
   tiempoAmarillo   Int       @default(5)
   tiempoRojo       Int       @default(6)
+  reingresoVentanaMinutos Int @default(180)
   codigosComodin   String    @default("00000000,99999999")
   ultimaRenovacion DateTime?
 }

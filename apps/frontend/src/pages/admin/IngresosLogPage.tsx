@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -12,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { useApiGet } from '@/hooks/use-api';
 import type { Profesor, PaginatedResponse } from '@/types';
+import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
 
 interface Ingreso {
   id: string;
@@ -39,6 +39,9 @@ export function IngresosLogPage() {
   const [filterEstado, setFilterEstado] = useState('all');
   const [filterProfesor, setFilterProfesor] = useState('all');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [sortBy, setSortBy] = useState('fecha');
+  const [sortOrder, setSortOrder] = useState<SortDirection>('desc');
 
   const params = new URLSearchParams();
   if (search) params.set('search', search);
@@ -47,13 +50,30 @@ export function IngresosLogPage() {
   if (filterEstado !== 'all') params.set('estado', filterEstado);
   if (filterProfesor !== 'all') params.set('profesorId', filterProfesor);
   params.set('page', String(page));
-  params.set('limit', '30');
+  params.set('limit', String(pageSize));
+  params.set('sortBy', sortBy);
+  params.set('sortOrder', sortOrder);
+
+  function handleSort(field: string) {
+    setSortOrder((current) => sortBy === field && current === 'asc' ? 'desc' : 'asc');
+    setSortBy(field);
+    setPage(1);
+  }
 
   const { data } = useApiGet<PaginatedResponse<Ingreso>>(
     `/ingresos?${params.toString()}`,
     { refreshInterval: 15000 },
   );
   const { data: profesores } = useApiGet<Profesor[]>('/profesores');
+
+  const ingresos = sortBy === 'profesor'
+    ? [...(data?.data ?? [])].sort((a, b) => {
+        const left = a.alumno.profesor ? `${a.alumno.profesor.apellido} ${a.alumno.profesor.nombre}` : '';
+        const right = b.alumno.profesor ? `${b.alumno.profesor.apellido} ${b.alumno.profesor.nombre}` : '';
+        const result = left.localeCompare(right, 'es');
+        return sortOrder === 'asc' ? result : -result;
+      })
+    : data?.data;
 
   function formatFecha(iso: string) {
     return new Date(iso).toLocaleString('es-AR', {
@@ -125,16 +145,16 @@ export function IngresosLogPage() {
         <table className="w-full text-sm">
           <thead className="bg-cefide-surface">
             <tr className="border-b border-cefide-border">
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Fecha/Hora</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">DNI</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Nombre</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Profesor</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Estado</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Molinete</th>
+              <SortableHeader label="Fecha/Hora" field="fecha" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="DNI" field="dni" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Nombre" field="nombre" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Profesor" field="profesor" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Estado" field="estado" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
+              <SortableHeader label="Molinete" field="molinete" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
             </tr>
           </thead>
           <tbody>
-            {data?.data.map((ing) => (
+            {ingresos?.map((ing) => (
               <tr key={ing.id} className="border-b border-cefide-border hover:bg-cefide-surface/50">
                 <td className="px-4 py-3 font-mono text-xs">{formatFecha(ing.fechaHora)}</td>
                 <td className="px-4 py-3 font-mono">{ing.alumno.dni}</td>
@@ -162,20 +182,7 @@ export function IngresosLogPage() {
       </div>
 
       {/* Paginación */}
-      {data && data.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-cefide-muted">{data.total} ingreso{data.total !== 1 ? 's' : ''}</p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Anterior
-            </Button>
-            <span className="flex items-center px-3 text-sm text-cefide-muted">{page} / {data.totalPages}</span>
-            <Button variant="outline" size="sm" disabled={page >= data.totalPages} onClick={() => setPage((p) => p + 1)}>
-              Siguiente
-            </Button>
-          </div>
-        </div>
-      )}
+      {data && <PaginationControls page={page} totalPages={data.totalPages} total={data.total} pageSize={pageSize} itemLabel="ingreso" onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />}
     </div>
   );
 }
