@@ -48,7 +48,6 @@ dumps/
 # Datos de migración inicial (PII, no commitear)
 migration/
 apps/backend/prisma/contactos-prod.json
-apps/backend/prisma/contactos-faltantes.json
 docs/alumnos_version8.csv
 docs/informe-seed-faltantes-local.md
 docs/informe-contactos-seed-faltantes.md
