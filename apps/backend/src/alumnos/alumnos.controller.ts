@@ -41,12 +41,16 @@ export class AlumnosController {
     @Query('activo') activo?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     return this.alumnosService.findAll({
       search,
       activo: activo !== undefined ? activo === 'true' : undefined,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
+      sortBy,
+      sortOrder: sortOrder === 'desc' ? 'desc' : 'asc',
       profesorId:
         user.rol === Rol.PROFESOR ? (user.profesorId ?? '__none__') : undefined,
     });

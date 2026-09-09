@@ -2,7 +2,6 @@
   "http_port": 3001,
   "allow_origin": "https://cefide-client.fmtcloud.com.ar",
   "timeout_ms": 5000,
-  "secret": "CAMBIAR_POR_TOKEN_ALEATORIO_LARGO",
 
   "targets": {
     "molinete1": {

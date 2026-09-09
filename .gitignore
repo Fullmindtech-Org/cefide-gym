@@ -5,6 +5,7 @@ node_modules/
 # Build
 dist/
 build/
+*.tsbuildinfo
 
 # Environment
 .env
@@ -46,3 +47,8 @@ dumps/
 
 # Datos de migración inicial (PII, no commitear)
 migration/
+apps/backend/prisma/contactos-prod.json
+docs/alumnos_version8.csv
+docs/informe-seed-faltantes-local.md
+docs/informe-contactos-seed-faltantes.md
+docs/INFORME-SERVIDOR-LOCAL.md

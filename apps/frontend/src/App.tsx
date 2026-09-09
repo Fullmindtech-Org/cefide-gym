@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Toaster } from 'sonner';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -15,6 +16,7 @@ import { ProfesoresPage } from '@/pages/admin/ProfesoresPage';
 import { PagosLogPage } from '@/pages/admin/PagosLogPage';
 import { KioscoPage } from '@/pages/KioscoPage';
 import { ProfesorDashboard } from '@/pages/ProfesorDashboard';
+import { ApiConnectionBanner } from '@/components/ApiConnectionBanner';
 
 export function App() {
   const { hydrate, usuario } = useAuthStore();
@@ -25,6 +27,7 @@ export function App() {
 
   return (
     <BrowserRouter>
+      <ApiConnectionBanner />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/kiosco" element={<KioscoPage />} />
@@ -69,6 +72,7 @@ export function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Toaster richColors position="bottom-right" />
     </BrowserRouter>
   );
 }

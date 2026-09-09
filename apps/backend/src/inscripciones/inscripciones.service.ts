@@ -3,15 +3,18 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { Frecuencia } from '@prisma/client';
+import { Frecuencia, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
+import { buildAlumnoSearch } from '../common/alumno-search';
 
 interface FindAllParams {
   search?: string;
   actividadId?: string;
   page?: number;
   limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
   profesorId?: string;
 }
 
@@ -24,16 +27,20 @@ export class InscripcionesService {
       where: { id: 'global' },
     });
     const map: Record<Frecuencia, number> = {
+      CLASE_SUELTA: config?.clasesSuelta ?? 1,
       UNA_VEZ: config?.clasesUnaVez ?? 5,
       DOS_VECES: config?.clasesDosVeces ?? 9,
       TRES_VECES: config?.clasesTresVeces ?? 13,
+      CUATRO_VECES: config?.clasesCuatroVeces ?? 17,
+      CINCO_VECES: config?.clasesCincoVeces ?? 21,
       LIBRE: config?.clasesLibre ?? 30,
+      BECADO: config?.clasesBecado ?? 30,
     };
     return map[frecuencia];
   }
 
   async findAll(params: FindAllParams) {
-    const { search, actividadId, page = 1, limit = 20, profesorId } = params;
+    const { search, actividadId, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
@@ -56,17 +63,16 @@ export class InscripcionesService {
       where.actividadId = actividadId;
     }
 
-    if (search) {
-      where.alumno = {
-        OR: [
-          { dni: { contains: search } },
-          { nombre: { contains: search, mode: 'insensitive' } },
-          { apellido: { contains: search, mode: 'insensitive' } },
-          { telefono: { contains: search, mode: 'insensitive' } },
-          { direccion: { contains: search, mode: 'insensitive' } },
-        ],
-      };
-    }
+    const alumnoSearch = buildAlumnoSearch(search);
+    if (alumnoSearch) where.alumno = alumnoSearch;
+
+    const orderBy = sortBy === 'dni' ? { alumno: { dni: sortOrder } }
+      : sortBy === 'alumno' ? [{ alumno: { apellido: sortOrder } }, { alumno: { nombre: sortOrder } }]
+      : sortBy === 'actividad' ? { actividad: { nombre: sortOrder } }
+      : sortBy === 'frecuencia' ? { frecuencia: sortOrder }
+      : sortBy === 'clases' ? { clasesUsadas: sortOrder }
+      : sortBy === 'pago' || sortBy === 'estado' ? { pagado: sortOrder }
+      : [{ alumno: { apellido: 'asc' as const } }, { actividad: { nombre: 'asc' as const } }];
 
     const [data, total] = await Promise.all([
       this.prisma.inscripcionActividad.findMany({
@@ -77,7 +83,7 @@ export class InscripcionesService {
           },
           actividad: { select: { id: true, nombre: true } },
         },
-        orderBy: [{ alumno: { apellido: 'asc' } }, { actividad: { nombre: 'asc' } }],
+        orderBy,
         skip,
         take: limit,
       }),
@@ -117,10 +123,18 @@ export class InscripcionesService {
 
     const clasesTotal = await this.clasesParaFrecuencia(dto.frecuencia);
 
-    return this.prisma.inscripcionActividad.create({
-      data: { alumnoId: dto.alumnoId, actividadId: dto.actividadId, frecuencia: dto.frecuencia, clasesTotal },
-      include: { actividad: true, alumno: { select: { id: true, dni: true, nombre: true, apellido: true } } },
-    });
+    try {
+      return await this.prisma.inscripcionActividad.create({
+        data: { alumnoId: dto.alumnoId, actividadId: dto.actividadId, frecuencia: dto.frecuencia, clasesTotal },
+        include: { actividad: true, alumno: { select: { id: true, dni: true, nombre: true, apellido: true } } },
+      });
+    } catch (error) {
+      // La restricción única es la defensa definitiva ante requests simultáneos.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('El alumno ya está inscripto en esta actividad');
+      }
+      throw error;
+    }
   }
 
   async pagar(id: string, pagado: boolean) {
@@ -186,15 +200,22 @@ export class InscripcionesService {
     });
   }
 
-  async cambiarFrecuencia(id: string, frecuencia: Frecuencia) {
+  async cambiarFrecuencia(id: string, frecuencia: Frecuencia, clasesUsadas?: number) {
     const inscripcion = await this.prisma.inscripcionActividad.findUnique({ where: { id } });
     if (!inscripcion) throw new NotFoundException('Inscripción no encontrada');
 
     const clasesTotal = await this.clasesParaFrecuencia(frecuencia);
+    const nuevasClasesUsadas = clasesUsadas ?? inscripcion.clasesUsadas;
+
+    if (nuevasClasesUsadas > clasesTotal) {
+      throw new ConflictException(
+        'Las clases usadas no pueden superar el total de la frecuencia elegida',
+      );
+    }
 
     return this.prisma.inscripcionActividad.update({
       where: { id },
-      data: { frecuencia, clasesTotal },
+      data: { frecuencia, clasesTotal, clasesUsadas: nuevasClasesUsadas },
       include: { actividad: true },
     });
   }

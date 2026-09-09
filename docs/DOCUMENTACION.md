@@ -48,7 +48,7 @@ ConfigSistema (fila única "global")
 **Actividad** — `nombre` (único), `activo`. Ej: Musculación, Spinning.
 
 **InscripcionActividad** — vínculo alumno↔actividad. Único por `(alumnoId, actividadId)`.
-- `frecuencia` — `UNA_VEZ` | `DOS_VECES` | `TRES_VECES` | `LIBRE`
+- `frecuencia` — `CLASE_SUELTA` | `UNA_VEZ` | `DOS_VECES` | `TRES_VECES` | `CUATRO_VECES` | `CINCO_VECES` | `LIBRE` | `BECADO`
 - `clasesTotal` — cupo del período (según frecuencia + config)
 - `clasesUsadas` — consumidas (default 0)
 - `pagado` — bool (default `false`)
@@ -62,7 +62,11 @@ ConfigSistema (fila única "global")
 | `clasesUnaVez` | 5 | cupo frecuencia UNA_VEZ |
 | `clasesDosVeces` | 9 | cupo DOS_VECES |
 | `clasesTresVeces` | 13 | cupo TRES_VECES |
+| `clasesCuatroVeces` | 17 | cupo CUATRO_VECES |
+| `clasesCincoVeces` | 21 | cupo CINCO_VECES |
+| `clasesSuelta` | 1 | cupo CLASE_SUELTA |
 | `clasesLibre` | 30 | cupo LIBRE |
+| `clasesBecado` | 30 | cupo BECADO |
 
 **Ingreso** — registro de cada paso por molinete: `estado` (VERDE/AMARILLO/ROJO), `molinete` (1/2), `fechaHora`, `inscripcionId`.
 
@@ -78,16 +82,25 @@ Al inscribir (o cambiar frecuencia), `clasesTotal` se setea desde la config:
 
 | Frecuencia | Clases/período (default) |
 |---|---|
+| `CLASE_SUELTA` | 1 |
 | `UNA_VEZ` | 5 |
 | `DOS_VECES` | 9 |
 | `TRES_VECES` | 13 |
+| `CUATRO_VECES` | 17 |
+| `CINCO_VECES` | 21 |
 | `LIBRE` | 30 |
+| `BECADO` | 30 |
+
+`BECADO` identifica explícitamente la condición del alumno en la inscripción. Su cupo inicial es de 30 clases por período, puede editarse mediante `clasesBecado` en Configuración y se muestra como **Becado** en la interfaz y los reportes.
 
 ---
 
 ## 4. Flujo ADMIN (alta y cobro)
 
 1. **Alumnos** (`/admin/alumnos`) → crear alumno. Nace `activo=true`.
+   - El alta permite elegir opcionalmente una actividad y frecuencia. El frontend crea primero el alumno y, usando el `id` confirmado por `POST /alumnos`, crea la inscripción mediante `POST /inscripciones`.
+   - Sin actividad seleccionada se conserva el alta simple. La inscripción inicial no aparece al editar un alumno existente.
+   - Si el alumno se crea pero falla la inscripción, el alumno no se elimina: el operador recibe un resultado parcial y debe verificar la pantalla de Inscripciones antes de reintentar.
 2. **Actividades** (`/admin/actividades`) → crear actividad.
 3. **Inscripciones** (`/admin/clases-pagos`) → inscribir alumno a actividad con una frecuencia.
    - Genera `clasesTotal` según frecuencia, `clasesUsadas=0`, `pagado=false`.
@@ -97,7 +110,7 @@ Al inscribir (o cambiar frecuencia), `clasesTotal` se setea desde la config:
    - Desmarcar → `fechaPago=null` + `Pago(ANULACION)`.
 5. **Ajustes de inscripción:**
    - **Clases sueltas** → `clasesTotal += N` (`PATCH /:id/clases-sueltas`)
-   - **Cambiar frecuencia** → recalcula `clasesTotal` (`PATCH /:id/frecuencia`)
+   - **Cambiar frecuencia** → recalcula `clasesTotal` desde Configuración y permite guardar `clasesUsadas` en la misma operación (`PATCH /:id/frecuencia`)
 6. **Renovación mensual** → `POST /inscripciones/renovacion-mensual` resetea **todas** las inscripciones: `clasesUsadas=0`, `pagado=false`, `fechaPago=null`.
    - Se puede disparar manualmente desde el panel admin.
    - **Cron automático** (`RenovacionCron`): corre todos los días a las 3 AM. Si `diaDelMes >= diaVencimiento` y aún no se ejecutó este mes (idempotente via `ultimaRenovacion`), ejecuta la renovación automáticamente.
@@ -138,7 +151,7 @@ Mientras sea > 0, deja pasar sin pago. El conteo es por **mes calendario** (desd
 - Crea `Ingreso(estado, molinete)`.
 - Si `estado != ROJO` y hay inscripción → `clasesUsadas += 1` (descuenta clase), dentro de una transacción.
 
-Apertura del molinete: el **frontend** hace `POST http://127.0.0.1:3001/proxy/<nombre>/abrir` con `X-Driver-Secret` directamente al Go driver local. El backend en la nube no alcanza los molinetes; el driver da el pulso al hardware (PCA150, 500 ms). El endpoint `/molinete/:num/contingencia` del backend solo deja registro en la base de datos.
+Apertura del molinete: el **frontend** hace `GET http://127.0.0.1:8080/proxy/<nombre>/abrir` directamente al GymProxy local instalado en la PC del kiosco. El backend en la nube no alcanza los molinetes; el proxy reenvía la orden al hardware. El endpoint `/molinete/:num/contingencia` del backend solo deja registro en la base de datos.
 
 **Contingencia:** `POST /molinete/:num/contingencia` abre manualmente desde el admin. `GET /molinete/:num/status` chequea si el driver responde.
 
@@ -183,14 +196,17 @@ UI: `/admin/reportes`, `/admin/pagos` (historial), `/admin/ingresos` (log de acc
 | POST | `/alumnos` | ADMIN | crear |
 | PUT | `/alumnos/:id` | ADMIN | editar |
 | PATCH | `/alumnos/:id/activate`·`/deactivate` | ADMIN | alta/baja |
+| DELETE | `/alumnos/:id` | ADMIN | borrar alumno y relaciones |
 | GET | `/actividades`·`/:id` | ADMIN/PROF | listar/detalle |
 | POST·PATCH | `/actividades`·`/:id` | ADMIN | crear/editar |
+| DELETE | `/actividades/:id` | ADMIN | borrar actividad y relaciones |
 | GET | `/inscripciones` | ADMIN/PROF | listar (search, actividadId, page) |
 | GET | `/inscripciones/alumno/:alumnoId` | ADMIN/PROF | por alumno |
 | POST | `/inscripciones` | ADMIN | inscribir |
 | PATCH | `/inscripciones/:id/pagar` | ADMIN | marcar/desmarcar pago |
 | PATCH | `/inscripciones/:id/clases-sueltas` | ADMIN | sumar clases |
-| PATCH | `/inscripciones/:id/frecuencia` | ADMIN | cambiar frecuencia |
+| PATCH | `/inscripciones/:id/clases` | ADMIN | ajustar usadas/total |
+| PATCH | `/inscripciones/:id/frecuencia` | ADMIN | cambiar frecuencia; acepta `clasesUsadas` opcional |
 | DELETE | `/inscripciones/:id` | ADMIN | borrar |
 | POST | `/inscripciones/renovacion-mensual` | ADMIN | reset mensual |
 | POST | `/acceso/consultar` | público | kiosco paso 1 |
@@ -200,13 +216,70 @@ UI: `/admin/reportes`, `/admin/pagos` (historial), `/admin/ingresos` (log de acc
 | GET | `/reportes/actividad` | ADMIN/PROF | reporte |
 | GET | `/reportes/actividad/csv` | ADMIN | CSV |
 | GET | `/reportes/pagos` | ADMIN | pagos |
+| DELETE | `/reportes/pagos/:id` | ADMIN | borrar sólo el registro del log |
 | GET·PATCH | `/config` | ADMIN | leer/editar config |
 | GET·POST·PUT·DELETE | `/profesores`… | ADMIN | CRUD profesores |
 | GET | `/health` | público | healthcheck |
 
 ---
 
-## 9. Pantallas del frontend
+## 9. Comunicación frontend-backend y errores
+
+El cliente común está en `apps/frontend/src/lib/api.ts`. Todas las solicitudes tienen un timeout predeterminado de **15 segundos** y no existen reintentos automáticos para escrituras.
+
+| Tipo | Detección | Comportamiento del frontend |
+|---|---|---|
+| Funcional | HTTP `400`–`499` | muestra el mensaje seguro enviado por la API; duplicados usan `409` |
+| Servidor | HTTP `500`–`599` | informa un problema del servidor, sin exponer detalles internos |
+| Red | `ApiError.kind = network` | informa que no pudo conectarse ni confirmar la operación |
+| Timeout | `ApiError.kind = timeout` | en escrituras advierte que el servidor podría haber completado la operación |
+| Respuesta inválida | `ApiError.kind = invalid-response` | no confirma éxito y solicita verificar antes de repetir |
+
+Códigos HTTP esperados por los flujos documentados:
+
+| Código | Significado |
+|---|---|
+| `200` | lectura, edición o eliminación confirmada |
+| `201` | alumno, inscripción u otro recurso creado |
+| `400` | payload o validación inválida |
+| `401` | sesión ausente, vencida o token inválido |
+| `403` | usuario autenticado sin permiso suficiente |
+| `404` | recurso inexistente |
+| `409` | conflicto funcional, por ejemplo inscripción duplicada |
+| `500`–`599` | error interno o indisponibilidad del servidor |
+
+Reglas de operación:
+
+- Los botones de escritura se deshabilitan durante el envío y los loaders finalizan mediante `finally`.
+- Una escritura sólo muestra éxito después de recibir confirmación HTTP válida.
+- Un microcorte posterior a la persistencia deja un resultado incierto; no se repite automáticamente el `POST`, `PATCH` o `DELETE`.
+- SWR conserva la última lectura válida (`keepPreviousData`) y revalida al recuperar foco o conexión.
+- El banner superior amarillo indica que el backend no está disponible y que los datos pueden estar desactualizados.
+- El refresh de sesión sólo cierra la sesión ante `401` o `403`. Red, timeout, respuesta inválida o `5xx` conservan la sesión local para permitir recuperación.
+- `AppErrorBoundary` evita una pantalla blanca ante errores React de render y ofrece recargar la aplicación.
+
+### Idempotencia y resultados inciertos
+
+- `POST /inscripciones` está protegido por `@@unique([alumnoId, actividadId])`; los duplicados devuelven `409`.
+- Activar/desactivar, editar valores absolutos y guardar configuración son naturalmente repetibles, aunque no se reintentan automáticamente.
+- Sumar clases, registrar/anular pagos y validar accesos pueden duplicar efectos si el operador repite una solicitud cuyo resultado no pudo confirmarse.
+- Una eliminación que sí se completó puede responder `404` al repetirse.
+
+### Alta con inscripción inicial
+
+Secuencia utilizada por el modal de Nuevo alumno:
+
+```text
+POST /api/alumnos { dni, nombre, apellido, ...contactoOpcional }
+  -> respuesta Alumno con id
+POST /api/inscripciones { alumnoId, actividadId, frecuencia }
+```
+
+El selector consume `GET /api/actividades?soloActivas=true`. Las frecuencias y cantidades de clases son las mismas del flujo normal de Inscripciones. No se genera ningún ID en el navegador y no existe rollback compensatorio si falla la segunda operación.
+
+---
+
+## 10. Pantallas del frontend
 
 **Admin** (`/admin/*`):
 - `alumnos` — listado/alta/baja (default tras login)
@@ -226,7 +299,7 @@ UI: `/admin/reportes`, `/admin/pagos` (historial), `/admin/ingresos` (log de acc
 
 ---
 
-## 10. Cómo levantar (dev, Docker)
+## 11. Cómo levantar (dev, Docker)
 
 ```powershell
 docker compose up --build -d      # postgres + backend + frontend
@@ -243,7 +316,7 @@ docker compose up -d              # prender (sin rebuild)
 
 **Login dev:** credenciales definidas en `ADMIN_EMAIL` / `ADMIN_PASSWORD` del `.env` (ver `.env.example`).
 
-Variables clave (`.env` raíz + `apps/backend/.env`): `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CORS_ORIGIN`, `DRIVER_SECRET`, `DEFAULT_CLASES_GRACIA`, `DEFAULT_DIA_VENCIMIENTO`.
+Variables clave (`.env` raíz + `apps/backend/.env`): `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CORS_ORIGIN`, `DEFAULT_CLASES_GRACIA`, `DEFAULT_DIA_VENCIMIENTO`.
 
 > Las vars `COM_PORT_MOLINETE_*`, `COM_SERVICE_URL_*` y `COM_PULSE_MS` pertenecen al **go-driver** (configuradas en su `config.json`), no al backend.
 
@@ -253,7 +326,7 @@ El `molinete-driver` no corre en dev (necesita puertos COM físicos). El backend
 
 ---
 
-## 11. Observaciones / huecos detectados
+## 12. Observaciones / huecos detectados
 
 - **`diaVencimiento`** está en config pero **no se usa**: la gracia se mide contando ingresos AMARILLO del mes, no por fecha límite.
 - **Renovación mensual**: hay cron automático (`EVERY_DAY_AT_3AM`) que ejecuta cuando `diaDelMes >= diaVencimiento`, idempotente por mes. El botón manual sigue disponible en el panel admin.

@@ -17,7 +17,7 @@ COPY apps/backend/ apps/backend/
 
 WORKDIR /app/apps/backend
 RUN pnpm exec prisma generate
-RUN pnpm run build
+RUN rm -f tsconfig.build.tsbuildinfo && pnpm run build
 
 # ── Stage 3: Production Runner ──────────────────
 FROM node:20-alpine AS runner

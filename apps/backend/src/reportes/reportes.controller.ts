@@ -13,7 +13,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
 import { CurrentUser, AuthUser } from '../auth/decorators/current-user.decorator';
-import { Rol } from '@prisma/client';
+import { Prisma, Rol } from '@prisma/client';
+import { buildAlumnoSearch } from '../common/alumno-search';
 
 @Controller('reportes')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -60,6 +61,8 @@ export class ReportesController {
     @Query('hasta') hasta?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 20;
@@ -67,17 +70,8 @@ export class ReportesController {
 
     const where: any = {};
 
-    if (search) {
-      where.alumno = {
-        OR: [
-          { dni: { contains: search } },
-          { nombre: { contains: search, mode: 'insensitive' } },
-          { apellido: { contains: search, mode: 'insensitive' } },
-          { telefono: { contains: search, mode: 'insensitive' } },
-          { direccion: { contains: search, mode: 'insensitive' } },
-        ],
-      };
-    }
+    const alumnoSearch = buildAlumnoSearch(search);
+    if (alumnoSearch) where.alumno = alumnoSearch;
 
     if (desde || hasta) {
       where.fecha = {};
@@ -89,6 +83,12 @@ export class ReportesController {
       }
     }
 
+    const direction: Prisma.SortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
+    const orderBy = sortBy === 'dni' ? { alumno: { dni: direction } }
+      : sortBy === 'alumno' ? [{ alumno: { apellido: direction } }, { alumno: { nombre: direction } }]
+      : sortBy === 'tipo' ? { tipo: direction }
+      : { fecha: direction };
+
     const [data, total] = await Promise.all([
       this.prisma.pago.findMany({
         where,
@@ -96,7 +96,7 @@ export class ReportesController {
           alumno: { select: { dni: true, nombre: true, apellido: true } },
           inscripcion: { include: { actividad: { select: { nombre: true } } } },
         },
-        orderBy: { fecha: 'desc' },
+        orderBy,
         skip,
         take: limitNum,
       }),

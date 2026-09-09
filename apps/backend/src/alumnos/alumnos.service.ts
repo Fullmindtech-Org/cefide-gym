@@ -8,12 +8,15 @@ import { Frecuencia } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAlumnoDto } from './dto/create-alumno.dto';
 import { UpdateAlumnoDto } from './dto/update-alumno.dto';
+import { buildAlumnoSearch } from '../common/alumno-search';
 
 interface FindAllParams {
   search?: string;
   activo?: boolean;
   page?: number;
   limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
   /** Si viene, limita los alumnos/inscripciones a las actividades de este profesor. */
   profesorId?: string;
 }
@@ -37,20 +40,13 @@ export class AlumnosService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(params: FindAllParams) {
-    const { search, activo, page = 1, limit = 20, profesorId } = params;
+    const { search, activo, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
 
-    if (search) {
-      where.OR = [
-        { dni: { contains: search } },
-        { nombre: { contains: search, mode: 'insensitive' } },
-        { apellido: { contains: search, mode: 'insensitive' } },
-        { telefono: { contains: search, mode: 'insensitive' } },
-        { direccion: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+    const alumnoSearch = buildAlumnoSearch(search);
+    if (alumnoSearch) Object.assign(where, alumnoSearch);
 
     if (activo !== undefined) {
       where.activo = activo;
@@ -73,10 +69,16 @@ export class AlumnosService {
       ...(actividadIds ? { where: { actividadId: { in: actividadIds } } } : {}),
     } as const;
 
+    const orderBy = sortBy === 'dni' ? { dni: sortOrder }
+      : sortBy === 'nombre' ? [{ apellido: sortOrder }, { nombre: sortOrder }]
+      : sortBy === 'telefono' ? { telefono: sortOrder }
+      : sortBy === 'activo' ? { activo: sortOrder }
+      : { apellido: 'asc' as const };
+
     const [data, total] = await Promise.all([
       this.prisma.alumno.findMany({
         where,
-        orderBy: { apellido: 'asc' },
+        orderBy,
         skip,
         take: limit,
         include: { inscripciones: inscripcionesInclude },
@@ -131,7 +133,12 @@ export class AlumnosService {
       throw new ConflictException('Ya existe un alumno con ese DNI');
     }
 
-    return this.prisma.alumno.create({ data: dto });
+    const data = {
+      ...dto,
+      fechaNacimiento: dto.fechaNacimiento ? new Date(dto.fechaNacimiento) : undefined,
+      fechaIngreso: dto.fechaIngreso ? new Date(dto.fechaIngreso) : undefined,
+    };
+    return this.prisma.alumno.create({ data });
   }
 
   async update(id: string, dto: UpdateAlumnoDto) {
@@ -146,7 +153,12 @@ export class AlumnosService {
       }
     }
 
-    return this.prisma.alumno.update({ where: { id }, data: dto });
+    const data = {
+      ...dto,
+      fechaNacimiento: dto.fechaNacimiento ? new Date(dto.fechaNacimiento) : undefined,
+      fechaIngreso: dto.fechaIngreso ? new Date(dto.fechaIngreso) : undefined,
+    };
+    return this.prisma.alumno.update({ where: { id }, data });
   }
 
   async deactivate(id: string) {
@@ -421,10 +433,14 @@ export class AlumnosService {
   async renovacionMensual(): Promise<{ renovados: number }> {
     const config = await this.prisma.configSistema.findUnique({ where: { id: 'global' } });
     const clasesPorFrecuencia: Record<string, number> = {
+      CLASE_SUELTA: config?.clasesSuelta ?? 1,
       UNA_VEZ:    config?.clasesUnaVez    ?? 5,
       DOS_VECES:  config?.clasesDosVeces  ?? 9,
       TRES_VECES: config?.clasesTresVeces ?? 13,
+      CUATRO_VECES: config?.clasesCuatroVeces ?? 17,
+      CINCO_VECES: config?.clasesCincoVeces ?? 21,
       LIBRE:      config?.clasesLibre     ?? 30,
+      BECADO:     config?.clasesBecado    ?? 30,
     };
 
     const inscripciones = await this.prisma.inscripcionActividad.findMany({

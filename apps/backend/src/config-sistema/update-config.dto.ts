@@ -36,7 +36,31 @@ export class UpdateConfigDto {
   @IsInt()
   @Min(1)
   @Max(365)
+  clasesCuatroVeces?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  clasesCincoVeces?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  clasesSuelta?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
   clasesLibre?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  clasesBecado?: number;
 
   @IsOptional()
   @IsInt()
@@ -56,10 +80,16 @@ export class UpdateConfigDto {
   @Max(60)
   tiempoRojo?: number;
 
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1440)
+  reingresoVentanaMinutos?: number;
+
   /** DNIs separados por coma, cada uno de 7-8 dígitos. Ej: "00000000,99999999" */
   @IsOptional()
   @IsString()
-  @Matches(/^(\d{7,8})(,\d{7,8})*$/, {
+  @Matches(/^$|^(\d{7,8})(,\d{7,8})*$/, {
     message: 'codigosComodin debe ser una lista de DNIs de 7-8 dígitos separados por coma',
   })
   codigosComodin?: string;
