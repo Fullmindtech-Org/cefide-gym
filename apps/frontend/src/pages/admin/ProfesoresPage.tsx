@@ -3,7 +3,7 @@ import { Plus, Trash2, Mail, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useApiGet } from '@/hooks/use-api';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import { ProfesorFormDialog } from './ProfesorFormDialog';
 import type { Profesor } from '@/types';
@@ -17,6 +17,7 @@ export function ProfesoresPage() {
   const [pageSize, setPageSize] = useState(20);
   const [sortBy, setSortBy] = useState('nombre');
   const [sortOrder, setSortOrder] = useState<SortDirection>('asc');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data: profesores, mutate } = useApiGet<Profesor[]>('/profesores');
 
@@ -39,17 +40,19 @@ export function ProfesoresPage() {
   const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   async function handleDelete(profesor: Profesor) {
+    if (deletingId) return;
     if (!confirm(`¿Eliminar a ${profesor.nombre} ${profesor.apellido}? Solo es posible si no tiene alumnos asignados.`)) return;
 
+    setDeletingId(profesor.id);
     try {
       await api(`/profesores/${profesor.id}`, {
         method: 'DELETE',
         token: token!,
       });
-      mutate();
+      void mutate();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al eliminar');
-    }
+      alert(getApiErrorMessage(err));
+    } finally { setDeletingId(null); }
   }
 
   return (
@@ -111,6 +114,7 @@ export function ProfesoresPage() {
                       size="icon"
                       onClick={() => handleDelete(profesor)}
                       title="Eliminar profesor"
+                      disabled={deletingId === profesor.id}
                     >
                       <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
                     </Button>
@@ -118,7 +122,7 @@ export function ProfesoresPage() {
                 </td>
               </tr>
             ))}
-            {total === 0 && (
+            {profesores && total === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-cefide-muted">
                   No hay profesores registrados

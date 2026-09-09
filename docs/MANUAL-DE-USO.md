@@ -47,10 +47,16 @@ Cuando inscribís a un alumno, elegís con qué frecuencia viene. Eso le asigna 
 
 | Frecuencia | Clases en el mes |
 |---|---|
+| Clase Suelta | 1 |
 | 1 vez por semana | 5 |
 | 2 veces por semana | 9 |
 | 3 veces por semana | 13 |
+| 4 veces por semana | 17 |
+| 5 veces por semana | 21 |
 | Libre | 30 |
+| Becado | 30 |
+
+La opción **Becado** asigna inicialmente 30 clases y deja visible esa condición en la inscripción, los listados y los reportes. Esa cantidad puede cambiarse desde **Configuración → Clases por frecuencia → Becado**.
 
 *(Estos números se pueden cambiar desde la pantalla de Configuración.)*
 
@@ -62,6 +68,12 @@ Cada vez que el alumno entra, se le descuenta **una clase**. Cuando se le acaban
 
 ### 1. Dar de alta un alumno nuevo
 Menú **Alumnos** → botón de agregar → cargás nombre, apellido y DNI. Queda **activo** automáticamente.
+
+En **Inscripción inicial (opcional)** podés elegir una actividad y frecuencia para dejarlo inscripto en el mismo paso. También podés dejar **Sin inscripción inicial** y anotarlo más adelante desde Inscripciones.
+
+Mientras se guarda, el botón muestra primero **Creando alumno...** y luego **Creando inscripción...**. No cierres ni repitas la operación hasta ver el resultado.
+
+Si aparece “Alumno creado correctamente, pero no se pudo confirmar/completar la inscripción”, el alumno **sí quedó registrado**. Revisá la sección Inscripciones antes de volver a inscribirlo.
 
 ### 2. Crear una actividad
 Menú **Actividades** → agregar → nombre de la actividad. (Esto se hace una sola vez por actividad.)
@@ -156,6 +168,15 @@ Se cambian una vez y quedan para todo el gimnasio.
 ---
 
 ## Situaciones comunes (preguntas frecuentes)
+
+**Aparece una franja amarilla indicando que no hay comunicación con el servidor.**
+El panel sigue abierto, pero la información visible puede estar desactualizada. Esperá a que vuelva la conexión antes de hacer cambios. Las tablas conservan la última información recibida.
+
+**Una operación dice que no pudo confirmar el resultado.**
+Puede haberse guardado justo antes del corte. Revisá el alumno, inscripción, pago o clases antes de volver a presionar el botón; el sistema no repite escrituras automáticamente.
+
+**El panel muestra “Ocurrió un error inesperado”.**
+Es un error del frontend, no necesariamente del backend. Usá **Recargar**. Si continúa, contactá al administrador.
 
 **El alumno pagó pero no lo deja entrar.**
 Verificá que esté **activo** y que **le queden clases**. Un alumno inactivo no entra aunque haya pagado.

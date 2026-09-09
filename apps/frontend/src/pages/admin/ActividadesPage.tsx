@@ -11,7 +11,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useApiGet } from '@/hooks/use-api';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Actividad } from '@/types';
 import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
@@ -29,6 +30,7 @@ export function ActividadesPage() {
   const [pageSize, setPageSize] = useState(20);
   const [sortBy, setSortBy] = useState('nombre');
   const [sortOrder, setSortOrder] = useState<SortDirection>('asc');
+  const [actionId, setActionId] = useState<string | null>(null);
 
   function handleSort(field: string) {
     setSortOrder((current) => sortBy === field && current === 'asc' ? 'desc' : 'asc');
@@ -85,7 +87,7 @@ export function ActividadesPage() {
       mutate();
       setDialogOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar');
+      setError(getApiErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -100,17 +102,25 @@ export function ActividadesPage() {
       `¿Eliminar la actividad "${a.nombre}"?${aviso}\n\nEsta acción no se puede deshacer.`,
     );
     if (!ok) return;
-    await api(`/actividades/${a.id}`, { method: 'DELETE', token: token! });
-    mutate();
+    if (actionId) return;
+    setActionId(a.id);
+    try {
+      await api(`/actividades/${a.id}`, { method: 'DELETE', token: token! });
+      toast.success('Actividad eliminada');
+      void mutate();
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setActionId(null); }
   }
 
   async function toggleActivo(a: Actividad) {
-    await api(`/actividades/${a.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ activo: !a.activo }),
-      token: token!,
-    });
-    mutate();
+    if (actionId) return;
+    setActionId(a.id);
+    try {
+      await api(`/actividades/${a.id}`, { method: 'PATCH', body: JSON.stringify({ activo: !a.activo }), token: token! });
+      toast.success(a.activo ? 'Actividad desactivada' : 'Actividad activada');
+      void mutate();
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setActionId(null); }
   }
 
   return (
@@ -150,7 +160,7 @@ export function ActividadesPage() {
                     <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
                       Editar
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => toggleActivo(a)}>
+                    <Button variant="ghost" size="sm" onClick={() => toggleActivo(a)} disabled={actionId === a.id}>
                       {a.activo ? 'Desactivar' : 'Activar'}
                     </Button>
                     <Button
@@ -158,6 +168,7 @@ export function ActividadesPage() {
                       size="icon"
                       onClick={() => eliminarActividad(a)}
                       title="Eliminar actividad"
+                      disabled={actionId === a.id}
                     >
                       <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
                     </Button>
@@ -178,7 +189,7 @@ export function ActividadesPage() {
 
       {actividades && <PaginationControls page={page} totalPages={totalPages} total={actividades.length} pageSize={pageSize} itemLabel="actividad" onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />}
 
-      <Dialog open={dialogOpen} onOpenChange={(v) => !v && setDialogOpen(false)}>
+      <Dialog open={dialogOpen} onOpenChange={(v) => !v && !saving && setDialogOpen(false)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editActividad ? 'Editar Actividad' : 'Nueva Actividad'}</DialogTitle>
@@ -196,7 +207,7 @@ export function ActividadesPage() {
             </div>
             {error && <p className="text-sm text-cefide-accent-alt">{error}</p>}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? 'Guardando...' : editActividad ? 'Guardar' : 'Crear'}
               </Button>

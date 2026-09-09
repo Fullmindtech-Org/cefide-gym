@@ -9,10 +9,14 @@ datasource db {
 }
 
 enum Frecuencia {
+  CLASE_SUELTA
   UNA_VEZ
   DOS_VECES
   TRES_VECES
+  CUATRO_VECES
+  CINCO_VECES
   LIBRE
+  BECADO
 }
 
 enum TipoPago {
@@ -137,7 +141,11 @@ model ConfigSistema {
   clasesUnaVez     Int       @default(5)
   clasesDosVeces   Int       @default(9)
   clasesTresVeces  Int       @default(13)
+  clasesCuatroVeces Int      @default(17)
+  clasesCincoVeces Int       @default(21)
+  clasesSuelta     Int       @default(1)
   clasesLibre      Int       @default(30)
+  clasesBecado     Int       @default(30)
   tiempoVerde      Int       @default(4)
   tiempoAmarillo   Int       @default(5)
   tiempoRojo       Int       @default(6)

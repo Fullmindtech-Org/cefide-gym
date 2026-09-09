@@ -3,7 +3,7 @@ import { api, ApiError } from '@/lib/api';
 import { abrirMolineteLocal } from '@/lib/molinete';
 import { getMolineteId } from '@/lib/molinete-id';
 import { useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { LogOut, TriangleAlert } from 'lucide-react';
 
 type Estado = 'idle' | 'loading_consultar' | 'seleccion' | 'loading_validar' | 'VERDE' | 'AMARILLO' | 'ROJO' | 'error';
 
@@ -218,7 +218,7 @@ export function KioscoPage() {
     seleccion: 'bg-cefide-bg',
     loading_validar: 'bg-cefide-bg',
     VERDE: 'bg-cefide-success',
-    AMARILLO: 'bg-cefide-warning',
+    AMARILLO: 'bg-cefide-success',
     ROJO: 'bg-cefide-accent-alt',
     error: 'bg-cefide-accent-alt',
   }[estado];
@@ -345,18 +345,23 @@ export function KioscoPage() {
       {/* AMARILLO */}
       {estado === 'AMARILLO' && resultado && (
         <div className={`text-center space-y-6 ${textClass}`}>
-          <div className="text-8xl font-bold">⚠</div>
+          <div className="text-8xl font-bold">✓</div>
+          <p className="text-3xl font-bold">ACCESO PERMITIDO</p>
           <h2 className="text-5xl font-bold">
             {resultado.alumno.nombre} {resultado.alumno.apellido}
           </h2>
           {resultado.actividad && (
             <p className="text-2xl font-semibold">{resultado.actividad}</p>
           )}
-          <p className="text-3xl font-semibold">
-            {resultado.clasesGraciaRestantes} clase{resultado.clasesGraciaRestantes !== 1 ? 's' : ''} de gracia
-          </p>
-          <p className="text-2xl font-bold">REGULARIZAR PAGO</p>
-          <p className="text-xl opacity-80">ACCESO CON GRACIA</p>
+          <div className="mx-4 inline-flex max-w-[calc(100vw-2rem)] flex-col items-center gap-2 rounded-lg border-2 border-black/20 bg-cefide-warning px-8 py-4 shadow-lg">
+            <p className="text-3xl font-bold">
+              {resultado.clasesGraciaRestantes} clase{resultado.clasesGraciaRestantes !== 1 ? 's' : ''} de gracia
+            </p>
+            <p className="flex items-center justify-center gap-2 text-2xl font-bold">
+              <TriangleAlert className="h-7 w-7 shrink-0" aria-hidden="true" />
+              Regularizar pago
+            </p>
+          </div>
         </div>
       )}
 

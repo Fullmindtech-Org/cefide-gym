@@ -203,22 +203,30 @@ gym/
 | `GET` | `/api/alumnos` | Listar alumnos (paginado, busqueda, filtros) |
 | `GET` | `/api/alumnos/:id` | Detalle de alumno |
 | `POST` | `/api/alumnos` | Crear alumno |
-| `PATCH` | `/api/alumnos/:id` | Editar alumno |
+| `PUT` | `/api/alumnos/:id` | Editar alumno |
 | `PATCH` | `/api/alumnos/:id/deactivate` | Baja logica |
 | `PATCH` | `/api/alumnos/:id/activate` | Reactivar |
-| `PATCH` | `/api/alumnos/:id/clases` | Asignar clases |
-| `PATCH` | `/api/alumnos/:id/renovar` | Renovar (reset usadas a 0) |
-| `PATCH` | `/api/alumnos/:id/pago` | Registrar/anular pago |
-| `GET` | `/api/alumnos/:id/pagos` | Historial de pagos del alumno |
+| `DELETE` | `/api/alumnos/:id` | Eliminar alumno y datos relacionados |
+| `GET` | `/api/actividades` | Listar actividades (`soloActivas=true` disponible) |
+| `POST` | `/api/actividades` | Crear actividad |
+| `PATCH` | `/api/actividades/:id` | Editar/activar/desactivar actividad |
+| `DELETE` | `/api/actividades/:id` | Eliminar actividad y datos relacionados |
+| `GET` | `/api/inscripciones` | Listar inscripciones |
+| `POST` | `/api/inscripciones` | Crear inscripción (`409` si alumno/actividad ya existe) |
+| `PATCH` | `/api/inscripciones/:id/pagar` | Registrar o anular pago |
+| `PATCH` | `/api/inscripciones/:id/clases-sueltas` | Sumar clases |
+| `PATCH` | `/api/inscripciones/:id/clases` | Ajustar clases usadas/totales |
+| `PATCH` | `/api/inscripciones/:id/frecuencia` | Cambiar frecuencia |
+| `DELETE` | `/api/inscripciones/:id` | Eliminar inscripción |
 | `GET` | `/api/profesores` | Listar profesores |
 | `POST` | `/api/profesores` | Crear profesor |
-| `PATCH` | `/api/profesores/:id` | Editar profesor |
+| `PUT` | `/api/profesores/:id` | Editar profesor |
 | `DELETE` | `/api/profesores/:id` | Eliminar profesor |
 | `GET` | `/api/ingresos` | Log de ingresos (paginado, filtros) |
 | `GET` | `/api/reportes/actividad` | Reporte por actividad |
 | `GET` | `/api/reportes/actividad/csv` | Exportar reporte a CSV |
 | `GET` | `/api/reportes/pagos` | Historial de pagos global |
-| `POST` | `/api/molinete/contingencia` | Abrir molinete manualmente |
+| `POST` | `/api/molinete/:num/contingencia` | Registrar apertura manual |
 
 ### Profesor (requiere JWT + rol PROFESOR)
 

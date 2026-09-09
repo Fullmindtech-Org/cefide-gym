@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDebounce } from '@/hooks/use-debounce';
-import { Search, Plus, DollarSign, Check, X, Trash2, Pencil } from 'lucide-react';
+import { Search, Plus, DollarSign, Check, X, Trash2, Pencil, LoaderCircle, TriangleAlert } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,10 +19,11 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useApiGet } from '@/hooks/use-api';
-import { api } from '@/lib/api';
+import { api, ApiError, getApiErrorMessage } from '@/lib/api';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
-import type { Actividad, Alumno, InscripcionActividad, PaginatedResponse } from '@/types';
-import { FRECUENCIA_LABEL as FL } from '@/types';
+import type { Actividad, Alumno, ConfigSistema, Frecuencia, InscripcionActividad, PaginatedResponse } from '@/types';
+import { clasesDeFrecuencia, FRECUENCIAS, FRECUENCIA_LABEL as FL, frecuenciaConClases } from '@/types';
 import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
 
 interface InscripcionFlat extends InscripcionActividad {
@@ -32,7 +33,7 @@ interface InscripcionFlat extends InscripcionActividad {
 interface NuevaInscripcionForm {
   alumnoId: string;
   actividadId: string;
-  frecuencia: string;
+  frecuencia: Frecuencia;
 }
 
 export function ClasesPagosPage() {
@@ -52,25 +53,33 @@ export function ClasesPagosPage() {
   // Clases sueltas dialog
   const [clasesDialog, setClasesDialog] = useState<string | null>(null);
   const [clasesValue, setClasesValue] = useState('');
+  const [clasesSaving, setClasesSaving] = useState(false);
+  const [clasesError, setClasesError] = useState('');
 
   // Editar clases (ajuste absoluto: usadas / total)
   const [editClases, setEditClases] = useState<InscripcionFlat | null>(null);
   const [editUsadas, setEditUsadas] = useState('');
-  const [editTotal, setEditTotal] = useState('');
+  const [editFrecuencia, setEditFrecuencia] = useState<Frecuencia>('DOS_VECES');
   const [editError, setEditError] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   // Confirmar eliminación
   const [confirmInscripcion, setConfirmInscripcion] = useState<InscripcionFlat | null>(null);
+  const [deletingInscripcion, setDeletingInscripcion] = useState(false);
 
   // Nueva inscripción dialog
   const [nuevaDialog, setNuevaDialog] = useState(false);
   const [nuevaForm, setNuevaForm] = useState<NuevaInscripcionForm>({ alumnoId: '', actividadId: '', frecuencia: 'DOS_VECES' });
+  const [nuevaSaving, setNuevaSaving] = useState(false);
+  const [nuevaSuccess, setNuevaSuccess] = useState(false);
+  const [nuevaError, setNuevaError] = useState('');
 
   // Buscador de alumno (por DNI / nombre) dentro del dialog
   const [alumnoSearch, setAlumnoSearch] = useState('');
   const [alumnoSel, setAlumnoSel] = useState<Alumno | null>(null);
 
   const { data: actividades } = useApiGet<Actividad[]>('/actividades?soloActivas=true');
+  const { data: config } = useApiGet<ConfigSistema>('/config');
 
   const { data: alumnosResult } = useApiGet<PaginatedResponse<Alumno>>(
     nuevaDialog && !alumnoSel && alumnoSearch.trim().length >= 2
@@ -85,10 +94,13 @@ export function ClasesPagosPage() {
   }
 
   function resetNuevaInscripcion() {
+    if (nuevaSaving) return;
     setNuevaDialog(false);
     setNuevaForm({ alumnoId: '', actividadId: '', frecuencia: 'DOS_VECES' });
     setAlumnoSel(null);
     setAlumnoSearch('');
+    setNuevaSuccess(false);
+    setNuevaError('');
   }
 
   const params = new URLSearchParams();
@@ -133,10 +145,10 @@ export function ClasesPagosPage() {
         body: JSON.stringify({ pagado: nuevoEstado }),
         token: token!,
       });
-      await mutate();
+      void mutate();
       setPagoSuccess(true);
     } catch (err) {
-      setPagoError(err instanceof Error ? err.message : 'No se pudo actualizar el cobro');
+      setPagoError(getApiErrorMessage(err));
     } finally {
       setPagoSaving(false);
     }
@@ -144,67 +156,97 @@ export function ClasesPagosPage() {
 
   async function handleAgregarClases() {
     const num = parseInt(clasesValue, 10);
-    if (!clasesDialog || isNaN(num) || num < 1) return;
-
-    await api(`/inscripciones/${clasesDialog}/clases-sueltas`, {
-      method: 'PATCH',
-      body: JSON.stringify({ clases: num }),
-      token: token!,
-    });
-    setClasesDialog(null);
-    setClasesValue('');
-    mutate();
+    if (!clasesDialog || isNaN(num) || num < 1 || clasesSaving) return;
+    setClasesSaving(true);
+    setClasesError('');
+    try {
+      await api(`/inscripciones/${clasesDialog}/clases-sueltas`, { method: 'PATCH', body: JSON.stringify({ clases: num }), token: token! });
+      setClasesDialog(null);
+      setClasesValue('');
+      toast.success('Clases agregadas');
+      void mutate();
+    } catch (error) { setClasesError(getApiErrorMessage(error)); }
+    finally { setClasesSaving(false); }
   }
 
   function abrirEditarClases(ins: InscripcionFlat) {
     setEditClases(ins);
     setEditUsadas(String(ins.clasesUsadas));
-    setEditTotal(String(ins.clasesTotal));
+    setEditFrecuencia(ins.frecuencia);
     setEditError('');
   }
 
   async function handleGuardarClases() {
-    if (!editClases) return;
+    if (!editClases || editSaving) return;
     const usadas = parseInt(editUsadas, 10);
-    const total = parseInt(editTotal, 10);
-    if (isNaN(usadas) || isNaN(total) || usadas < 0 || total < 0) {
+    if (isNaN(usadas) || usadas < 0) {
       setEditError('Valores inválidos');
       return;
     }
+    const total = config ? clasesDeFrecuencia(config, editFrecuencia) : editClases.clasesTotal;
     if (usadas > total) {
       setEditError('Las clases usadas no pueden superar el total');
       return;
     }
+    setEditSaving(true);
     try {
-      await api(`/inscripciones/${editClases.id}/clases`, {
+      await api(`/inscripciones/${editClases.id}/frecuencia`, {
         method: 'PATCH',
-        body: JSON.stringify({ clasesUsadas: usadas, clasesTotal: total }),
+        body: JSON.stringify({ frecuencia: editFrecuencia, clasesUsadas: usadas }),
         token: token!,
       });
       setEditClases(null);
-      mutate();
+      toast.success('Clases actualizadas');
+      void mutate();
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Error al guardar');
-    }
+      setEditError(getApiErrorMessage(err));
+    } finally { setEditSaving(false); }
   }
 
   async function doEliminarInscripcion() {
-    if (!confirmInscripcion) return;
-    await api(`/inscripciones/${confirmInscripcion.id}`, { method: 'DELETE', token: token! });
-    setConfirmInscripcion(null);
-    mutate();
+    if (!confirmInscripcion || deletingInscripcion) return;
+    setDeletingInscripcion(true);
+    try {
+      await api(`/inscripciones/${confirmInscripcion.id}`, { method: 'DELETE', token: token! });
+      setConfirmInscripcion(null);
+      toast.success('Inscripción eliminada');
+      void mutate();
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setDeletingInscripcion(false); }
   }
 
   async function handleNuevaInscripcion() {
-    if (!nuevaForm.alumnoId || !nuevaForm.actividadId) return;
+    if (!nuevaForm.alumnoId || !nuevaForm.actividadId || nuevaSaving) return;
 
-    await api('/inscripciones', {
-      method: 'POST',
-      body: JSON.stringify(nuevaForm),
-      token: token!,
-    });
-    resetNuevaInscripcion();
-    mutate();
+    setNuevaSaving(true);
+    setNuevaError('');
+    try {
+      await api('/inscripciones', {
+        method: 'POST',
+        body: JSON.stringify(nuevaForm),
+        token: token!,
+      });
+      setNuevaSuccess(true);
+      void mutate();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.kind === 'timeout') {
+          setNuevaError('No se pudo confirmar el resultado. Verificá la lista antes de volver a intentar.');
+        } else if (err.kind === 'network') {
+          setNuevaError('No se pudo conectar con el servidor. La inscripción no fue confirmada.');
+        } else if (err.kind === 'invalid-response') {
+          setNuevaError('El servidor respondió de forma inesperada. Verificá la lista antes de reintentar.');
+        } else if (err.status >= 500) {
+          setNuevaError('El servidor no pudo crear la inscripción. Intentá nuevamente más tarde.');
+        } else {
+          setNuevaError(err.message);
+        }
+      } else {
+        setNuevaError('Ocurrió un error inesperado al crear la inscripción.');
+      }
+    } finally {
+      setNuevaSaving(false);
+    }
   }
 
   function getEstadoBadge(ins: InscripcionFlat) {
@@ -282,7 +324,7 @@ export function ClasesPagosPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => { setClasesDialog(ins.id); setClasesValue(''); }}
+                      onClick={() => { setClasesDialog(ins.id); setClasesValue(''); setClasesError(''); }}
                       title="Agregar clases sueltas"
                     >
                       <Plus className="mr-1 h-3 w-3" />
@@ -364,7 +406,7 @@ export function ClasesPagosPage() {
       </Dialog>
 
       {/* Clases sueltas dialog */}
-      <Dialog open={!!clasesDialog} onOpenChange={(v) => !v && setClasesDialog(null)}>
+      <Dialog open={!!clasesDialog} onOpenChange={(v) => !v && !clasesSaving && setClasesDialog(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Agregar clases sueltas</DialogTitle>
@@ -379,13 +421,15 @@ export function ClasesPagosPage() {
                 onChange={(e) => setClasesValue(e.target.value)}
                 autoFocus
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAgregarClases(); }}
+                disabled={clasesSaving}
               />
             </div>
+            {clasesError && <p className="text-sm text-cefide-accent-alt">{clasesError}</p>}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setClasesDialog(null)}>Cancelar</Button>
-              <Button onClick={handleAgregarClases}>
+              <Button variant="outline" onClick={() => setClasesDialog(null)} disabled={clasesSaving}>Cancelar</Button>
+              <Button onClick={handleAgregarClases} disabled={clasesSaving}>
                 <Check className="mr-1 h-4 w-4" />
-                Agregar
+                {clasesSaving ? 'Agregando...' : 'Agregar'}
               </Button>
             </div>
           </div>
@@ -393,7 +437,7 @@ export function ClasesPagosPage() {
       </Dialog>
 
       {/* Editar clases dialog (ajuste absoluto usadas / total) */}
-      <Dialog open={!!editClases} onOpenChange={(v) => !v && setEditClases(null)}>
+      <Dialog open={!!editClases} onOpenChange={(v) => !v && !editSaving && setEditClases(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar clases</DialogTitle>
@@ -416,20 +460,24 @@ export function ClasesPagosPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Clases total</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={editTotal}
-                    onChange={(e) => setEditTotal(e.target.value)}
-                  />
+                  <Select value={editFrecuencia} onValueChange={(value) => setEditFrecuencia(value as Frecuencia)} disabled={!config}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {FRECUENCIAS.map((opcion) => (
+                        <SelectItem key={opcion} value={opcion}>
+                          {config ? frecuenciaConClases(config, opcion) : FL[opcion]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               {editError && <p className="text-sm text-cefide-accent-alt">{editError}</p>}
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setEditClases(null)}>Cancelar</Button>
-                <Button onClick={handleGuardarClases}>
+                <Button variant="outline" onClick={() => setEditClases(null)} disabled={editSaving}>Cancelar</Button>
+                <Button onClick={handleGuardarClases} disabled={editSaving}>
                   <Check className="mr-1 h-4 w-4" />
-                  Guardar
+                  {editSaving ? 'Guardando...' : 'Guardar'}
                 </Button>
               </div>
             </div>
@@ -438,7 +486,7 @@ export function ClasesPagosPage() {
       </Dialog>
 
       {/* Confirmar eliminación inscripción */}
-      <Dialog open={!!confirmInscripcion} onOpenChange={(v) => !v && setConfirmInscripcion(null)}>
+      <Dialog open={!!confirmInscripcion} onOpenChange={(v) => !v && !deletingInscripcion && setConfirmInscripcion(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Eliminar inscripción</DialogTitle>
@@ -454,8 +502,8 @@ export function ClasesPagosPage() {
                 Se borran también sus pagos e ingresos de esta actividad. Esta acción no se puede deshacer.
               </p>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setConfirmInscripcion(null)}>Cancelar</Button>
-                <Button variant="destructive" onClick={doEliminarInscripcion}>Eliminar</Button>
+                <Button variant="outline" onClick={() => setConfirmInscripcion(null)} disabled={deletingInscripcion}>Cancelar</Button>
+                <Button variant="destructive" onClick={doEliminarInscripcion} disabled={deletingInscripcion}>{deletingInscripcion ? 'Eliminando...' : 'Eliminar'}</Button>
               </div>
             </div>
           )}
@@ -468,7 +516,15 @@ export function ClasesPagosPage() {
           <DialogHeader>
             <DialogTitle>Nueva Inscripción</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          {nuevaSuccess ? (
+            <div className="space-y-4">
+              <div className="rounded-md border border-cefide-success/30 bg-cefide-success/10 p-4 text-cefide-success">
+                <p className="font-medium">Inscripción creada correctamente</p>
+                <p className="mt-1 text-sm">El servidor confirmó la nueva inscripción.</p>
+              </div>
+              <div className="flex justify-end"><Button onClick={resetNuevaInscripcion}>Cerrar</Button></div>
+            </div>
+          ) : <div className="space-y-4">
             <div className="space-y-2">
               <Label>Alumno</Label>
               {alumnoSel ? (
@@ -481,6 +537,7 @@ export function ClasesPagosPage() {
                     size="icon"
                     onClick={() => { setAlumnoSel(null); setNuevaForm((f) => ({ ...f, alumnoId: '' })); }}
                     title="Cambiar alumno"
+                    disabled={nuevaSaving}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -494,6 +551,7 @@ export function ClasesPagosPage() {
                     onChange={(e) => setAlumnoSearch(e.target.value)}
                     className="pl-9"
                     autoFocus
+                    disabled={nuevaSaving}
                   />
                   {alumnoSearch.trim().length >= 2 && (
                     <div className="absolute z-10 mt-1 w-full rounded-md border border-cefide-border bg-cefide-surface shadow-lg max-h-56 overflow-auto">
@@ -519,7 +577,7 @@ export function ClasesPagosPage() {
             </div>
             <div className="space-y-2">
               <Label>Actividad</Label>
-              <Select value={nuevaForm.actividadId} onValueChange={(v) => setNuevaForm((f) => ({ ...f, actividadId: v }))}>
+              <Select disabled={nuevaSaving} value={nuevaForm.actividadId} onValueChange={(v) => setNuevaForm((f) => ({ ...f, actividadId: v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar actividad" />
                 </SelectTrigger>
@@ -532,23 +590,33 @@ export function ClasesPagosPage() {
             </div>
             <div className="space-y-2">
               <Label>Frecuencia</Label>
-              <Select value={nuevaForm.frecuencia} onValueChange={(v) => setNuevaForm((f) => ({ ...f, frecuencia: v }))}>
+              <Select disabled={nuevaSaving} value={nuevaForm.frecuencia} onValueChange={(v) => setNuevaForm((f) => ({ ...f, frecuencia: v as Frecuencia }))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="UNA_VEZ">1x semana (5 clases)</SelectItem>
-                  <SelectItem value="DOS_VECES">2x semana (9 clases)</SelectItem>
-                  <SelectItem value="TRES_VECES">3x semana (13 clases)</SelectItem>
-                  <SelectItem value="LIBRE">Libre (30 clases)</SelectItem>
+                  {FRECUENCIAS.map((opcion) => (
+                    <SelectItem key={opcion} value={opcion}>
+                      {config ? frecuenciaConClases(config, opcion) : FL[opcion]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+            {nuevaError && (
+              <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-cefide-text">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <p>{nuevaError}</p>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={resetNuevaInscripcion}>Cancelar</Button>
-              <Button onClick={handleNuevaInscripcion} disabled={!nuevaForm.alumnoId || !nuevaForm.actividadId}>Crear</Button>
+              <Button variant="outline" onClick={resetNuevaInscripcion} disabled={nuevaSaving}>Cancelar</Button>
+              <Button onClick={handleNuevaInscripcion} disabled={nuevaSaving || !nuevaForm.alumnoId || !nuevaForm.actividadId}>
+                {nuevaSaving && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                {nuevaSaving ? 'Creando inscripción...' : 'Crear'}
+              </Button>
             </div>
-          </div>
+          </div>}
         </DialogContent>
       </Dialog>
     </div>

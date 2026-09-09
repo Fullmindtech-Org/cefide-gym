@@ -36,7 +36,31 @@ export class UpdateConfigDto {
   @IsInt()
   @Min(1)
   @Max(365)
+  clasesCuatroVeces?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  clasesCincoVeces?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  clasesSuelta?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
   clasesLibre?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  clasesBecado?: number;
 
   @IsOptional()
   @IsInt()

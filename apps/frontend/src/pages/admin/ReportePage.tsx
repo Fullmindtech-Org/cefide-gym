@@ -145,7 +145,7 @@ export function ReportePage() {
                 <td className="px-4 py-3 text-center">{getEstadoBadge(item)}</td>
               </tr>
             ))}
-            {total === 0 && (
+            {data && total === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-cefide-muted">Sin datos</td>
               </tr>

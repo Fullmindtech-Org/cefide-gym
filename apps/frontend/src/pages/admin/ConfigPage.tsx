@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useApiGet } from '@/hooks/use-api';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
 import type { ConfigSistema } from '@/types';
 import { Pencil, Plus, Trash2, X, Check } from 'lucide-react';
@@ -18,7 +19,11 @@ export function ConfigPage() {
   const [clasesUnaVez, setClasesUnaVez] = useState('5');
   const [clasesDosVeces, setClasesDosVeces] = useState('9');
   const [clasesTresVeces, setClasesTresVeces] = useState('13');
+  const [clasesCuatroVeces, setClasesCuatroVeces] = useState('17');
+  const [clasesCincoVeces, setClasesCincoVeces] = useState('21');
+  const [clasesSuelta, setClasesSuelta] = useState('1');
   const [clasesLibre, setClasesLibre] = useState('30');
+  const [clasesBecado, setClasesBecado] = useState('30');
   const [tiempoVerde, setTiempoVerde] = useState('4');
   const [tiempoAmarillo, setTiempoAmarillo] = useState('5');
   const [tiempoRojo, setTiempoRojo] = useState('6');
@@ -39,7 +44,11 @@ export function ConfigPage() {
       setClasesUnaVez(String(config.clasesUnaVez));
       setClasesDosVeces(String(config.clasesDosVeces));
       setClasesTresVeces(String(config.clasesTresVeces));
+      setClasesCuatroVeces(String(config.clasesCuatroVeces ?? 17));
+      setClasesCincoVeces(String(config.clasesCincoVeces ?? 21));
+      setClasesSuelta(String(config.clasesSuelta ?? 1));
       setClasesLibre(String(config.clasesLibre));
+      setClasesBecado(String(config.clasesBecado ?? 30));
       setTiempoVerde(String(config.tiempoVerde));
       setTiempoAmarillo(String(config.tiempoAmarillo));
       setTiempoRojo(String(config.tiempoRojo));
@@ -64,9 +73,11 @@ export function ConfigPage() {
     reingresoTotalMinutos <= 1440;
 
   async function handleSave() {
+    if (saving) return;
     setSaving(true);
     setSaved(false);
-    await api('/config', {
+    try {
+      await api('/config', {
       method: 'PATCH',
       body: JSON.stringify({
         clasesGracia: parseInt(clasesGracia, 10),
@@ -74,7 +85,11 @@ export function ConfigPage() {
         clasesUnaVez: parseInt(clasesUnaVez, 10),
         clasesDosVeces: parseInt(clasesDosVeces, 10),
         clasesTresVeces: parseInt(clasesTresVeces, 10),
+        clasesCuatroVeces: parseInt(clasesCuatroVeces, 10),
+        clasesCincoVeces: parseInt(clasesCincoVeces, 10),
+        clasesSuelta: parseInt(clasesSuelta, 10),
         clasesLibre: parseInt(clasesLibre, 10),
+        clasesBecado: parseInt(clasesBecado, 10),
         tiempoVerde: parseInt(tiempoVerde, 10),
         tiempoAmarillo: parseInt(tiempoAmarillo, 10),
         tiempoRojo: parseInt(tiempoRojo, 10),
@@ -82,11 +97,12 @@ export function ConfigPage() {
         codigosComodin: codigosComodin.join(','),
       }),
       token: token!,
-    });
-    mutate();
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+      });
+      void mutate();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setSaving(false); }
   }
 
   function normalizarCodigo(value: string) {
@@ -283,6 +299,16 @@ export function ConfigPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label htmlFor="clasesSuelta">Clase Suelta</Label>
+                <Input
+                  id="clasesSuelta"
+                  type="number"
+                  min="1"
+                  value={clasesSuelta}
+                  onChange={(e) => setClasesSuelta(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="clasesUnaVez">1x por semana</Label>
                 <Input
                   id="clasesUnaVez"
@@ -320,6 +346,36 @@ export function ConfigPage() {
                   min="1"
                   value={clasesLibre}
                   onChange={(e) => setClasesLibre(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clasesCuatroVeces">4x por semana</Label>
+                <Input
+                  id="clasesCuatroVeces"
+                  type="number"
+                  min="1"
+                  value={clasesCuatroVeces}
+                  onChange={(e) => setClasesCuatroVeces(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clasesCincoVeces">5x por semana</Label>
+                <Input
+                  id="clasesCincoVeces"
+                  type="number"
+                  min="1"
+                  value={clasesCincoVeces}
+                  onChange={(e) => setClasesCincoVeces(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clasesBecado">Becado</Label>
+                <Input
+                  id="clasesBecado"
+                  type="number"
+                  min="1"
+                  value={clasesBecado}
+                  onChange={(e) => setClasesBecado(e.target.value)}
                 />
               </div>
             </div>

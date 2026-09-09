@@ -23,6 +23,8 @@ import { useAuthStore } from '@/stores/auth.store';
 import { AlumnoFormDialog } from './AlumnoFormDialog';
 import type { Alumno, PaginatedResponse } from '@/types';
 import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
+import { toast } from 'sonner';
+import { getApiErrorMessage } from '@/lib/api';
 
 export function AlumnosPage() {
   const token = useAuthStore((s) => s.token);
@@ -36,6 +38,7 @@ export function AlumnosPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editAlumno, setEditAlumno] = useState<Alumno | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Alumno | null>(null);
+  const [actionId, setActionId] = useState<string | null>(null);
 
   const params = new URLSearchParams();
   if (debouncedSearch) params.set('search', debouncedSearch);
@@ -56,19 +59,28 @@ export function AlumnosPage() {
   );
 
   async function toggleActivo(alumno: Alumno) {
+    if (actionId) return;
     const action = alumno.activo ? 'deactivate' : 'activate';
-    await api(`/alumnos/${alumno.id}/${action}`, {
-      method: 'PATCH',
-      token: token!,
-    });
-    mutate();
+    setActionId(alumno.id);
+    try {
+      await api(`/alumnos/${alumno.id}/${action}`, { method: 'PATCH', token: token! });
+      toast.success(alumno.activo ? 'Alumno desactivado' : 'Alumno activado');
+      void mutate();
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setActionId(null); }
   }
 
   async function doEliminarAlumno() {
     if (!confirmDelete) return;
-    await api(`/alumnos/${confirmDelete.id}`, { method: 'DELETE', token: token! });
-    setConfirmDelete(null);
-    mutate();
+    if (actionId) return;
+    setActionId(confirmDelete.id);
+    try {
+      await api(`/alumnos/${confirmDelete.id}`, { method: 'DELETE', token: token! });
+      setConfirmDelete(null);
+      toast.success('Alumno eliminado');
+      void mutate();
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setActionId(null); }
   }
 
   function openNew() {
@@ -165,6 +177,7 @@ export function AlumnosPage() {
                       size="icon"
                       onClick={() => toggleActivo(alumno)}
                       title={alumno.activo ? 'Desactivar' : 'Activar'}
+                      disabled={actionId === alumno.id}
                     >
                       {alumno.activo ? (
                         <UserX className="h-4 w-4 text-cefide-accent-alt" />
@@ -204,7 +217,7 @@ export function AlumnosPage() {
         alumno={editAlumno}
       />
 
-      <Dialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
+      <Dialog open={!!confirmDelete} onOpenChange={(v) => !v && !actionId && setConfirmDelete(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Eliminar alumno</DialogTitle>
@@ -218,8 +231,8 @@ export function AlumnosPage() {
                 Se borran también sus inscripciones, pagos e ingresos. Esta acción no se puede deshacer.
               </p>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
-                <Button variant="destructive" onClick={doEliminarAlumno}>Eliminar</Button>
+                <Button variant="outline" onClick={() => setConfirmDelete(null)} disabled={!!actionId}>Cancelar</Button>
+                <Button variant="destructive" onClick={doEliminarAlumno} disabled={!!actionId}>{actionId ? 'Eliminando...' : 'Eliminar'}</Button>
               </div>
             </div>
           )}

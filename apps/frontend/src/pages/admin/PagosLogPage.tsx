@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useApiGet } from '@/hooks/use-api';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
 import type { PaginatedResponse } from '@/types';
 import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
@@ -30,6 +31,7 @@ export function PagosLogPage() {
   const [pageSize, setPageSize] = useState(20);
   const [sortBy, setSortBy] = useState('fecha');
   const [sortOrder, setSortOrder] = useState<SortDirection>('desc');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const params = new URLSearchParams();
   if (search) params.set('search', search);
@@ -56,8 +58,14 @@ export function PagosLogPage() {
         'Solo borra el registro del log; no modifica la inscripción. Esta acción no se puede deshacer.',
     );
     if (!ok) return;
-    await api(`/reportes/pagos/${pago.id}`, { method: 'DELETE', token: token! });
-    mutate();
+    if (deletingId) return;
+    setDeletingId(pago.id);
+    try {
+      await api(`/reportes/pagos/${pago.id}`, { method: 'DELETE', token: token! });
+      toast.success('Registro eliminado');
+      void mutate();
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setDeletingId(null); }
   }
 
   function formatFecha(iso: string) {
@@ -133,6 +141,7 @@ export function PagosLogPage() {
                     size="icon"
                     onClick={() => eliminarPago(pago)}
                     title="Eliminar registro"
+                    disabled={deletingId === pago.id}
                   >
                     <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
                   </Button>

@@ -85,7 +85,7 @@ export class InscripcionesController {
   @Patch(':id/frecuencia')
   @Roles(Rol.ADMIN)
   cambiarFrecuencia(@Param('id') id: string, @Body() dto: CambiarFrecuenciaDto) {
-    return this.inscripcionesService.cambiarFrecuencia(id, dto.frecuencia);
+    return this.inscripcionesService.cambiarFrecuencia(id, dto.frecuencia, dto.clasesUsadas);
   }
 
   @Delete(':id')
