@@ -16,6 +16,7 @@ import { ProfesoresPage } from '@/pages/admin/ProfesoresPage';
 import { PagosLogPage } from '@/pages/admin/PagosLogPage';
 import { KioscoPage } from '@/pages/KioscoPage';
 import { ProfesorDashboard } from '@/pages/ProfesorDashboard';
+import { ApiConnectionBanner } from '@/components/ApiConnectionBanner';
 
 export function App() {
   const { hydrate, usuario } = useAuthStore();
@@ -26,6 +27,7 @@ export function App() {
 
   return (
     <BrowserRouter>
+      <ApiConnectionBanner />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/kiosco" element={<KioscoPage />} />

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EstadoIngreso } from '@prisma/client';
+import { buildAlumnoSearch } from '../common/alumno-search';
 
 interface FindAllParams {
   desde?: string;
@@ -10,6 +11,8 @@ interface FindAllParams {
   search?: string;
   page?: number;
   limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
   profesorId?: string;
 }
 
@@ -18,7 +21,7 @@ export class IngresosService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(params: FindAllParams) {
-    const { desde, hasta, alumnoId, estado, search, page = 1, limit = 30, profesorId } = params;
+    const { desde, hasta, alumnoId, estado, search, page = 1, limit = 30, profesorId, sortBy, sortOrder = 'desc' } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
@@ -45,15 +48,14 @@ export class IngresosService {
     if (alumnoId) where.alumnoId = alumnoId;
     if (estado) where.estado = estado;
 
-    if (search) {
-      where.alumno = {
-        OR: [
-          { dni: { contains: search } },
-          { nombre: { contains: search, mode: 'insensitive' } },
-          { apellido: { contains: search, mode: 'insensitive' } },
-        ],
-      };
-    }
+    const alumnoSearch = buildAlumnoSearch(search);
+    if (alumnoSearch) where.alumno = alumnoSearch;
+
+    const orderBy = sortBy === 'dni' ? { alumno: { dni: sortOrder } }
+      : sortBy === 'nombre' ? [{ alumno: { apellido: sortOrder } }, { alumno: { nombre: sortOrder } }]
+      : sortBy === 'estado' ? { estado: sortOrder }
+      : sortBy === 'molinete' ? { molinete: sortOrder }
+      : { fechaHora: sortOrder };
 
     const [data, total] = await Promise.all([
       this.prisma.ingreso.findMany({
@@ -66,7 +68,7 @@ export class IngresosService {
             include: { actividad: { select: { nombre: true } } },
           },
         },
-        orderBy: { fechaHora: 'desc' },
+        orderBy,
         skip,
         take: limit,
       }),

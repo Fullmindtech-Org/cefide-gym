@@ -27,6 +27,15 @@ function MolineteCard({ num, onStatusChange }: MolineteCardProps) {
   const [opening, setOpening] = useState(false);
   const [lastAction, setLastAction] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // El resultado es una confirmación transitoria. Al cambiar el mensaje se
+  // reinicia el plazo y, al desmontar la tarjeta, se cancela el temporizador.
+  useEffect(() => {
+    if (!lastAction) return;
+
+    const timeout = setTimeout(() => setLastAction(null), 5000);
+    return () => clearTimeout(timeout);
+  }, [lastAction]);
+
   useEffect(() => {
     let cancelado = false;
     async function fetchStatus() {

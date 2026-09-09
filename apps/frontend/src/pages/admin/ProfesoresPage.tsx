@@ -3,37 +3,56 @@ import { Plus, Trash2, Mail, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useApiGet } from '@/hooks/use-api';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import { ProfesorFormDialog } from './ProfesorFormDialog';
 import type { Profesor } from '@/types';
-
-const PAGE_SIZE = 20;
+import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
 
 export function ProfesoresPage() {
   const token = useAuthStore((s) => s.token);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewProfesor, setViewProfesor] = useState<Profesor | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [sortBy, setSortBy] = useState('nombre');
+  const [sortOrder, setSortOrder] = useState<SortDirection>('asc');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data: profesores, mutate } = useApiGet<Profesor[]>('/profesores');
 
   const total = profesores?.length ?? 0;
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const paginated = profesores?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) ?? [];
+  function handleSort(field: string) {
+    setSortOrder((current) => sortBy === field && current === 'asc' ? 'desc' : 'asc');
+    setSortBy(field);
+    setPage(1);
+  }
+  const sorted = [...(profesores ?? [])].sort((a, b) => {
+    const values: Record<string, [string | number, string | number]> = {
+      dni: [a.dni, b.dni], nombre: [`${a.apellido} ${a.nombre}`, `${b.apellido} ${b.nombre}`],
+      email: [a.usuario?.email ?? '', b.usuario?.email ?? ''], alumnos: [a._count?.alumnos ?? 0, b._count?.alumnos ?? 0],
+    };
+    const [left, right] = values[sortBy] ?? values.nombre;
+    const result = typeof left === 'string' ? left.localeCompare(String(right), 'es') : left - Number(right);
+    return sortOrder === 'asc' ? result : -result;
+  });
+  const totalPages = Math.ceil(total / pageSize);
+  const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   async function handleDelete(profesor: Profesor) {
+    if (deletingId) return;
     if (!confirm(`¿Eliminar a ${profesor.nombre} ${profesor.apellido}? Solo es posible si no tiene alumnos asignados.`)) return;
 
+    setDeletingId(profesor.id);
     try {
       await api(`/profesores/${profesor.id}`, {
         method: 'DELETE',
         token: token!,
       });
-      mutate();
+      void mutate();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al eliminar');
-    }
+      alert(getApiErrorMessage(err));
+    } finally { setDeletingId(null); }
   }
 
   return (
@@ -50,10 +69,10 @@ export function ProfesoresPage() {
         <table className="w-full text-sm">
           <thead className="bg-cefide-surface">
             <tr className="border-b border-cefide-border">
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">DNI</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Nombre</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Email</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Alumnos</th>
+              <SortableHeader label="DNI" field="dni" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Nombre" field="nombre" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Email" field="email" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Alumnos" field="alumnos" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <th className="px-4 py-3 text-right font-medium text-cefide-muted">Acciones</th>
             </tr>
           </thead>
@@ -95,6 +114,7 @@ export function ProfesoresPage() {
                       size="icon"
                       onClick={() => handleDelete(profesor)}
                       title="Eliminar profesor"
+                      disabled={deletingId === profesor.id}
                     >
                       <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
                     </Button>
@@ -102,7 +122,7 @@ export function ProfesoresPage() {
                 </td>
               </tr>
             ))}
-            {total === 0 && (
+            {profesores && total === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-cefide-muted">
                   No hay profesores registrados
@@ -113,24 +133,7 @@ export function ProfesoresPage() {
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-cefide-muted">
-            {total} profesor{total !== 1 ? 'es' : ''}
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Anterior
-            </Button>
-            <span className="flex items-center px-3 text-sm text-cefide-muted">
-              {page} / {totalPages}
-            </span>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-              Siguiente
-            </Button>
-          </div>
-        </div>
-      )}
+      {profesores && <PaginationControls page={page} totalPages={totalPages} total={total} pageSize={pageSize} itemLabel="profesor" onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />}
 
       <ProfesorFormDialog
         open={dialogOpen}

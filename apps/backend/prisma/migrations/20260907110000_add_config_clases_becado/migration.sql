@@ -1,0 +1,2 @@
+ALTER TABLE "ConfigSistema"
+ADD COLUMN "clasesBecado" INTEGER NOT NULL DEFAULT 30;

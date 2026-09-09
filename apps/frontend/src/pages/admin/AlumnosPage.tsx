@@ -22,6 +22,9 @@ import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
 import { AlumnoFormDialog } from './AlumnoFormDialog';
 import type { Alumno, PaginatedResponse } from '@/types';
+import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
+import { toast } from 'sonner';
+import { getApiErrorMessage } from '@/lib/api';
 
 export function AlumnosPage() {
   const token = useAuthStore((s) => s.token);
@@ -29,34 +32,55 @@ export function AlumnosPage() {
   const debouncedSearch = useDebounce(search);
   const [filterActivo, setFilterActivo] = useState('all');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [sortBy, setSortBy] = useState('nombre');
+  const [sortOrder, setSortOrder] = useState<SortDirection>('asc');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editAlumno, setEditAlumno] = useState<Alumno | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Alumno | null>(null);
+  const [actionId, setActionId] = useState<string | null>(null);
 
   const params = new URLSearchParams();
   if (debouncedSearch) params.set('search', debouncedSearch);
   if (filterActivo !== 'all') params.set('activo', filterActivo);
   params.set('page', String(page));
-  params.set('limit', '20');
+  params.set('limit', String(pageSize));
+  params.set('sortBy', sortBy);
+  params.set('sortOrder', sortOrder);
+
+  function handleSort(field: string) {
+    setSortOrder((current) => sortBy === field && current === 'asc' ? 'desc' : 'asc');
+    setSortBy(field);
+    setPage(1);
+  }
 
   const { data, mutate } = useApiGet<PaginatedResponse<Alumno>>(
     `/alumnos?${params.toString()}`,
   );
 
   async function toggleActivo(alumno: Alumno) {
+    if (actionId) return;
     const action = alumno.activo ? 'deactivate' : 'activate';
-    await api(`/alumnos/${alumno.id}/${action}`, {
-      method: 'PATCH',
-      token: token!,
-    });
-    mutate();
+    setActionId(alumno.id);
+    try {
+      await api(`/alumnos/${alumno.id}/${action}`, { method: 'PATCH', token: token! });
+      toast.success(alumno.activo ? 'Alumno desactivado' : 'Alumno activado');
+      void mutate();
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setActionId(null); }
   }
 
   async function doEliminarAlumno() {
     if (!confirmDelete) return;
-    await api(`/alumnos/${confirmDelete.id}`, { method: 'DELETE', token: token! });
-    setConfirmDelete(null);
-    mutate();
+    if (actionId) return;
+    setActionId(confirmDelete.id);
+    try {
+      await api(`/alumnos/${confirmDelete.id}`, { method: 'DELETE', token: token! });
+      setConfirmDelete(null);
+      toast.success('Alumno eliminado');
+      void mutate();
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setActionId(null); }
   }
 
   function openNew() {
@@ -114,10 +138,10 @@ export function AlumnosPage() {
         <table className="w-full text-sm">
           <thead className="bg-cefide-surface">
             <tr className="border-b border-cefide-border">
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">DNI</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Nombre</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Teléfono</th>
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Estado</th>
+              <SortableHeader label="DNI" field="dni" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Nombre" field="nombre" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Teléfono" field="telefono" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Estado" field="activo" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
               <th className="px-4 py-3 text-right font-medium text-cefide-muted">Acciones</th>
             </tr>
           </thead>
@@ -153,6 +177,7 @@ export function AlumnosPage() {
                       size="icon"
                       onClick={() => toggleActivo(alumno)}
                       title={alumno.activo ? 'Desactivar' : 'Activar'}
+                      disabled={actionId === alumno.id}
                     >
                       {alumno.activo ? (
                         <UserX className="h-4 w-4 text-cefide-accent-alt" />
@@ -183,34 +208,7 @@ export function AlumnosPage() {
         </table>
       </div>
 
-      {data && data.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-cefide-muted">
-            {data.total} alumno{data.total !== 1 ? 's' : ''} total
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Anterior
-            </Button>
-            <span className="flex items-center px-3 text-sm text-cefide-muted">
-              {page} / {data.totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= data.totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Siguiente
-            </Button>
-          </div>
-        </div>
-      )}
+      {data && <PaginationControls page={page} totalPages={data.totalPages} total={data.total} pageSize={pageSize} itemLabel="alumno" onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />}
 
       <AlumnoFormDialog
         open={dialogOpen}
@@ -219,7 +217,7 @@ export function AlumnosPage() {
         alumno={editAlumno}
       />
 
-      <Dialog open={!!confirmDelete} onOpenChange={(v) => !v && setConfirmDelete(null)}>
+      <Dialog open={!!confirmDelete} onOpenChange={(v) => !v && !actionId && setConfirmDelete(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Eliminar alumno</DialogTitle>
@@ -233,8 +231,8 @@ export function AlumnosPage() {
                 Se borran también sus inscripciones, pagos e ingresos. Esta acción no se puede deshacer.
               </p>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
-                <Button variant="destructive" onClick={doEliminarAlumno}>Eliminar</Button>
+                <Button variant="outline" onClick={() => setConfirmDelete(null)} disabled={!!actionId}>Cancelar</Button>
+                <Button variant="destructive" onClick={doEliminarAlumno} disabled={!!actionId}>{actionId ? 'Eliminando...' : 'Eliminar'}</Button>
               </div>
             </div>
           )}

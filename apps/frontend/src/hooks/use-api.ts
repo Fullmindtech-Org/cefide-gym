@@ -13,6 +13,7 @@ function useApiGet<T>(endpoint: string | null, config?: SWRConfiguration) {
       // (ingresos, etc.) se actualizan sin tener que refrescar la página a mano.
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
+      keepPreviousData: true,
       ...config,
     },
   );

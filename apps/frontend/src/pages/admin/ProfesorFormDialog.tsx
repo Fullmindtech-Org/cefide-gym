@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Eye, EyeOff } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { useApiGet } from '@/hooks/use-api';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Profesor, Actividad } from '@/types';
@@ -94,14 +94,14 @@ export function ProfesorFormDialog({ open, onClose, onSuccess, profesor }: Props
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar');
+      setError(getApiErrorMessage(err));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={open} onOpenChange={(v) => !v && !saving && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar Profesor' : 'Nuevo Profesor'}</DialogTitle>
@@ -216,7 +216,7 @@ export function ProfesorFormDialog({ open, onClose, onSuccess, profesor }: Props
           {error && <p className="text-sm text-cefide-accent-alt">{error}</p>}
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
               Cancelar
             </Button>
             <Button type="submit" disabled={saving}>

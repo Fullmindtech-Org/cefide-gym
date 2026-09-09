@@ -3,6 +3,19 @@ import { EstadoIngreso, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DNIS_COMODIN_DEFAULT = ['00000000', '99999999'];
+const REINGRESO_VENTANA_MINUTOS_DEFAULT = 180;
+
+function contarSesionesDeGracia(fechas: Date[], ventanaReingresoMs: number): number {
+  let sesiones = 0;
+  let ultimoIngreso: Date | null = null;
+  for (const fecha of fechas) {
+    if (!ultimoIngreso || fecha.getTime() - ultimoIngreso.getTime() >= ventanaReingresoMs) {
+      sesiones++;
+    }
+    ultimoIngreso = fecha;
+  }
+  return sesiones;
+}
 
 export interface ResultadoAcceso {
   estado: EstadoIngreso;
@@ -181,9 +194,61 @@ export class AccesoService {
             }
 
             const config = await tx.configSistema.findUnique({ where: { id: 'global' } });
-            const clasesGraciaMax = config?.clasesGracia ?? 2;
+            const clasesGraciaMax = config?.clasesGracia ?? 5;
+            const ventanaReingresoMs =
+              (config?.reingresoVentanaMinutos ?? REINGRESO_VENTANA_MINUTOS_DEFAULT) * 60 * 1000;
             const clasesRestantes = inscripcion.clasesTotal - inscripcion.clasesUsadas;
             const actividad = inscripcion.actividad.nombre;
+            const inicioMes = new Date();
+            inicioMes.setDate(1);
+            inicioMes.setHours(0, 0, 0, 0);
+            const ingresosAmarillos = inscripcion.pagado
+              ? []
+              : await tx.ingreso.findMany({
+                  where: {
+                    inscripcionId,
+                    estado: EstadoIngreso.AMARILLO,
+                    fechaHora: { gte: inicioMes },
+                  },
+                  select: { fechaHora: true },
+                  orderBy: { fechaHora: 'asc' },
+                });
+            const sesionesGracia = contarSesionesDeGracia(
+              ingresosAmarillos.map((ingreso) => ingreso.fechaHora),
+              ventanaReingresoMs,
+            );
+
+            // Un reingreso a la misma actividad dentro de la ventana configurada forma
+            // parte de la misma asistencia. Se registra para auditoría, pero
+            // no vuelve a descontar una clase ni una unidad de gracia.
+            const inicioVentanaReingreso = new Date(Date.now() - ventanaReingresoMs);
+            const ingresoReciente = await tx.ingreso.findFirst({
+              where: {
+                inscripcionId,
+                estado: { in: [EstadoIngreso.VERDE, EstadoIngreso.AMARILLO] },
+                fechaHora: { gte: inicioVentanaReingreso },
+              },
+              orderBy: { fechaHora: 'desc' },
+            });
+
+            if (ingresoReciente) {
+              const estadoReingreso = inscripcion.pagado
+                ? EstadoIngreso.VERDE
+                : EstadoIngreso.AMARILLO;
+              await tx.ingreso.create({
+                data: { alumnoId: alumno.id, inscripcionId, estado: estadoReingreso, molinete },
+              });
+              return {
+                estado: estadoReingreso,
+                alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
+                clasesRestantes,
+                clasesGraciaRestantes: inscripcion.pagado
+                  ? 0
+                  : Math.max(0, clasesGraciaMax - sesionesGracia),
+                mensaje: `Reingreso permitido sin descontar otra clase en ${actividad}`,
+                actividad,
+              };
+            }
 
             if (clasesRestantes <= 0) {
               await tx.ingreso.create({
@@ -220,19 +285,7 @@ export class AccesoService {
             }
 
             // Sin pago — verificar clases de gracia.
-            const inicioMes = new Date();
-            inicioMes.setDate(1);
-            inicioMes.setHours(0, 0, 0, 0);
-
-            const ingresosGracia = await tx.ingreso.count({
-              where: {
-                inscripcionId,
-                estado: EstadoIngreso.AMARILLO,
-                fechaHora: { gte: inicioMes },
-              },
-            });
-
-            const clasesGraciaRestantes = clasesGraciaMax - ingresosGracia;
+            const clasesGraciaRestantes = clasesGraciaMax - sesionesGracia;
 
             if (clasesGraciaRestantes > 0) {
               await tx.ingreso.create({
@@ -246,8 +299,8 @@ export class AccesoService {
                 estado: EstadoIngreso.AMARILLO,
                 alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
                 clasesRestantes: clasesRestantesPost,
-                clasesGraciaRestantes,
-                mensaje: `${clasesGraciaRestantes} clase(s) de gracia en ${actividad}. Regularizar pago.`,
+                clasesGraciaRestantes: clasesGraciaRestantes - 1,
+                mensaje: `${clasesGraciaRestantes - 1} clase(s) de gracia restante(s) en ${actividad}. Regularizar pago.`,
                 actividad,
               };
             }

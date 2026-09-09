@@ -15,15 +15,20 @@ export class ConfigSistemaService {
       config = await this.prisma.configSistema.create({
         data: {
           id: 'global',
-          clasesGracia: 2,
+          clasesGracia: 5,
           diaVencimiento: 5,
           clasesUnaVez: 5,
           clasesDosVeces: 9,
           clasesTresVeces: 13,
+          clasesCuatroVeces: 17,
+          clasesCincoVeces: 21,
+          clasesSuelta: 1,
           clasesLibre: 30,
+          clasesBecado: 30,
           tiempoVerde: 4,
           tiempoAmarillo: 5,
           tiempoRojo: 6,
+          reingresoVentanaMinutos: 180,
           codigosComodin: '00000000,99999999',
         },
       });

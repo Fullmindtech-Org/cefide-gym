@@ -11,9 +11,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useApiGet } from '@/hooks/use-api';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Actividad } from '@/types';
+import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
 
 export function ActividadesPage() {
   const token = useAuthStore((s) => s.token);
@@ -24,6 +26,30 @@ export function ActividadesPage() {
   const [nombre, setNombre] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [sortBy, setSortBy] = useState('nombre');
+  const [sortOrder, setSortOrder] = useState<SortDirection>('asc');
+  const [actionId, setActionId] = useState<string | null>(null);
+
+  function handleSort(field: string) {
+    setSortOrder((current) => sortBy === field && current === 'asc' ? 'desc' : 'asc');
+    setSortBy(field);
+    setPage(1);
+  }
+
+  const sorted = [...(actividades ?? [])].sort((a, b) => {
+    const values: Record<string, [string | number | boolean, string | number | boolean]> = {
+      nombre: [a.nombre, b.nombre],
+      inscriptos: [a._count?.inscripciones ?? 0, b._count?.inscripciones ?? 0],
+      estado: [a.activo, b.activo],
+    };
+    const [left, right] = values[sortBy] ?? values.nombre;
+    const result = typeof left === 'string' ? left.localeCompare(String(right), 'es') : Number(left) - Number(right);
+    return sortOrder === 'asc' ? result : -result;
+  });
+  const totalPages = Math.ceil(sorted.length / pageSize);
+  const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   function openNew() {
     setEditActividad(null);
@@ -61,7 +87,7 @@ export function ActividadesPage() {
       mutate();
       setDialogOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al guardar');
+      setError(getApiErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -76,17 +102,25 @@ export function ActividadesPage() {
       `¿Eliminar la actividad "${a.nombre}"?${aviso}\n\nEsta acción no se puede deshacer.`,
     );
     if (!ok) return;
-    await api(`/actividades/${a.id}`, { method: 'DELETE', token: token! });
-    mutate();
+    if (actionId) return;
+    setActionId(a.id);
+    try {
+      await api(`/actividades/${a.id}`, { method: 'DELETE', token: token! });
+      toast.success('Actividad eliminada');
+      void mutate();
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setActionId(null); }
   }
 
   async function toggleActivo(a: Actividad) {
-    await api(`/actividades/${a.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ activo: !a.activo }),
-      token: token!,
-    });
-    mutate();
+    if (actionId) return;
+    setActionId(a.id);
+    try {
+      await api(`/actividades/${a.id}`, { method: 'PATCH', body: JSON.stringify({ activo: !a.activo }), token: token! });
+      toast.success(a.activo ? 'Actividad desactivada' : 'Actividad activada');
+      void mutate();
+    } catch (error) { toast.error(getApiErrorMessage(error)); }
+    finally { setActionId(null); }
   }
 
   return (
@@ -103,14 +137,14 @@ export function ActividadesPage() {
         <table className="w-full text-sm">
           <thead className="bg-cefide-surface">
             <tr className="border-b border-cefide-border">
-              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Nombre</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Inscriptos</th>
-              <th className="px-4 py-3 text-center font-medium text-cefide-muted">Estado</th>
+              <SortableHeader label="Nombre" field="nombre" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <SortableHeader label="Inscriptos" field="inscriptos" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
+              <SortableHeader label="Estado" field="estado" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <th className="px-4 py-3 text-right font-medium text-cefide-muted">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {actividades?.map((a) => (
+            {paginated.map((a) => (
               <tr key={a.id} className="border-b border-cefide-border hover:bg-cefide-surface/50 transition-colors">
                 <td className="px-4 py-3 font-medium">{a.nombre}</td>
                 <td className="px-4 py-3 text-center text-cefide-muted">
@@ -126,7 +160,7 @@ export function ActividadesPage() {
                     <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
                       Editar
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => toggleActivo(a)}>
+                    <Button variant="ghost" size="sm" onClick={() => toggleActivo(a)} disabled={actionId === a.id}>
                       {a.activo ? 'Desactivar' : 'Activar'}
                     </Button>
                     <Button
@@ -134,6 +168,7 @@ export function ActividadesPage() {
                       size="icon"
                       onClick={() => eliminarActividad(a)}
                       title="Eliminar actividad"
+                      disabled={actionId === a.id}
                     >
                       <Trash2 className="h-4 w-4 text-cefide-accent-alt" />
                     </Button>
@@ -152,7 +187,9 @@ export function ActividadesPage() {
         </table>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={(v) => !v && setDialogOpen(false)}>
+      {actividades && <PaginationControls page={page} totalPages={totalPages} total={actividades.length} pageSize={pageSize} itemLabel="actividad" onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />}
+
+      <Dialog open={dialogOpen} onOpenChange={(v) => !v && !saving && setDialogOpen(false)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editActividad ? 'Editar Actividad' : 'Nueva Actividad'}</DialogTitle>
@@ -170,7 +207,7 @@ export function ActividadesPage() {
             </div>
             {error && <p className="text-sm text-cefide-accent-alt">{error}</p>}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? 'Guardando...' : editActividad ? 'Guardar' : 'Crear'}
               </Button>

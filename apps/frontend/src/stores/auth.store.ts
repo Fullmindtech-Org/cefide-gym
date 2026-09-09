@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, registerAuthRefresh } from '@/lib/api';
+import { api, ApiError, registerAuthRefresh } from '@/lib/api';
 
 interface Usuario {
   id: string;
@@ -114,8 +114,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         set({ token: data.accessToken, refreshToken: data.refreshToken });
         return true;
-      } catch {
-        get().logout();
+      } catch (error) {
+        if (error instanceof ApiError && error.kind === 'http' && (error.status === 401 || error.status === 403)) {
+          get().logout();
+        }
         return false;
       }
     })();
