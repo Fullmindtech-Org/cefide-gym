@@ -18,6 +18,7 @@ services:
       API_DOMAIN: ${API_DOMAIN}
       DEFAULT_CLASES_GRACIA: ${DEFAULT_CLASES_GRACIA}
       DEFAULT_DIA_VENCIMIENTO: ${DEFAULT_DIA_VENCIMIENTO}
+      RENOVACION_AUTOMATICA_HABILITADA: ${RENOVACION_AUTOMATICA_HABILITADA:-false}
     # Migraciones corren antes del start (requisito Fullmindtech)
     command: sh -c "npx prisma migrate deploy && node dist/main"
     networks:
