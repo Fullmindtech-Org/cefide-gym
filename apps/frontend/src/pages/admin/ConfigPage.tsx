@@ -8,7 +8,7 @@ import { api, getApiErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
 import type { ConfigSistema } from '@/types';
-import { Pencil, Plus, Trash2, X, Check } from 'lucide-react';
+import { Pencil, Plus, Trash2, X, Check, Search } from 'lucide-react';
 
 export function ConfigPage() {
   const token = useAuthStore((s) => s.token);
@@ -34,8 +34,10 @@ export function ConfigPage() {
   const [codigoError, setCodigoError] = useState('');
   const [editingCodigo, setEditingCodigo] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savingSection, setSavingSection] = useState<string | null>(null);
+  const [savedSection, setSavedSection] = useState<string | null>(null);
+  const [buscarCodigo, setBuscarCodigo] = useState('');
+  const [paginaCodigos, setPaginaCodigos] = useState(1);
 
   useEffect(() => {
     if (config) {
@@ -72,37 +74,22 @@ export function ConfigPage() {
     reingresoTotalMinutos >= 1 &&
     reingresoTotalMinutos <= 1440;
 
-  async function handleSave() {
-    if (saving) return;
-    setSaving(true);
-    setSaved(false);
+  async function handleSave(section: string, data: Record<string, number | string>) {
+    if (savingSection) return;
+    setSavingSection(section);
+    setSavedSection(null);
     try {
-      await api('/config', {
+      const updated = await api<ConfigSistema>('/config', {
       method: 'PATCH',
-      body: JSON.stringify({
-        clasesGracia: parseInt(clasesGracia, 10),
-        diaVencimiento: parseInt(diaVencimiento, 10),
-        clasesUnaVez: parseInt(clasesUnaVez, 10),
-        clasesDosVeces: parseInt(clasesDosVeces, 10),
-        clasesTresVeces: parseInt(clasesTresVeces, 10),
-        clasesCuatroVeces: parseInt(clasesCuatroVeces, 10),
-        clasesCincoVeces: parseInt(clasesCincoVeces, 10),
-        clasesSuelta: parseInt(clasesSuelta, 10),
-        clasesLibre: parseInt(clasesLibre, 10),
-        clasesBecado: parseInt(clasesBecado, 10),
-        tiempoVerde: parseInt(tiempoVerde, 10),
-        tiempoAmarillo: parseInt(tiempoAmarillo, 10),
-        tiempoRojo: parseInt(tiempoRojo, 10),
-        reingresoVentanaMinutos: reingresoTotalMinutos,
-        codigosComodin: codigosComodin.join(','),
-      }),
+      body: JSON.stringify(data),
       token: token!,
       });
-      void mutate();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      await mutate(updated, false);
+      setSavedSection(section);
+      toast.success('Configuración guardada');
+      window.setTimeout(() => setSavedSection((current) => current === section ? null : current), 2000);
     } catch (error) { toast.error(getApiErrorMessage(error)); }
-    finally { setSaving(false); }
+    finally { setSavingSection(null); }
   }
 
   function normalizarCodigo(value: string) {
@@ -150,6 +137,12 @@ export function ConfigPage() {
     if (editingCodigo === index) setEditingCodigo(null);
     setCodigoError('');
   }
+
+  const codigosFiltrados = codigosComodin
+    .map((codigo, index) => ({ codigo, index }))
+    .filter(({ codigo }) => codigo.includes(buscarCodigo));
+  const totalPaginasCodigos = Math.max(1, Math.ceil(codigosFiltrados.length / 10));
+  const codigosPagina = codigosFiltrados.slice((paginaCodigos - 1) * 10, paginaCodigos * 10);
 
   return (
     <div className="space-y-6">
@@ -229,6 +222,12 @@ export function ConfigPage() {
                 </p>
               )}
             </div>
+            <div className="flex items-center gap-3">
+              <Button onClick={() => handleSave('acceso', { clasesGracia: parseInt(clasesGracia, 10), diaVencimiento: parseInt(diaVencimiento, 10), reingresoVentanaMinutos: reingresoTotalMinutos })} disabled={savingSection !== null || !reingresoValido}>
+                {savingSection === 'acceso' ? 'Guardando...' : 'Guardar'}
+              </Button>
+              {savedSection === 'acceso' && <span className="text-sm text-cefide-success">Guardado</span>}
+            </div>
           </CardContent>
         </Card>
 
@@ -256,11 +255,24 @@ export function ConfigPage() {
               {codigoError && <p className="text-sm text-cefide-accent-alt">{codigoError}</p>}
               <p className="text-xs text-cefide-muted">Solo números enteros, con una longitud de 7 u 8 dígitos.</p>
 
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cefide-muted" />
+                <Input value={buscarCodigo} onChange={(e) => { setBuscarCodigo(normalizarCodigo(e.target.value)); setPaginaCodigos(1); }} placeholder="Buscar por DNI" className="pl-9 font-mono" inputMode="numeric" />
+              </div>
+              {codigosFiltrados.length > 10 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-cefide-muted">Página {paginaCodigos} de {totalPaginasCodigos}</span>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setPaginaCodigos((page) => Math.max(1, page - 1))} disabled={paginaCodigos === 1}>Anterior</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setPaginaCodigos((page) => Math.min(totalPaginasCodigos, page + 1))} disabled={paginaCodigos === totalPaginasCodigos}>Siguiente</Button>
+                  </div>
+                </div>
+              )}
               <div className="overflow-hidden rounded-md border border-cefide-border">
                 <div className="grid grid-cols-[1fr_auto] border-b border-cefide-border bg-cefide-surface px-3 py-2 text-xs font-medium text-cefide-muted">
                   <span>DNI comodín</span><span>Acciones</span>
                 </div>
-                {codigosComodin.map((codigo, index) => (
+                {codigosPagina.map(({ codigo, index }) => (
                   <div key={`${codigo}-${index}`} className="grid grid-cols-[1fr_auto] items-center gap-2 border-b border-cefide-border px-3 py-2 last:border-b-0">
                     {editingCodigo === index ? (
                       <Input
@@ -286,8 +298,13 @@ export function ConfigPage() {
                   </div>
                 ))}
                 {codigosComodin.length === 0 && <p className="px-3 py-6 text-center text-sm text-cefide-muted">No hay DNI comodín configurados</p>}
+                {codigosComodin.length > 0 && codigosFiltrados.length === 0 && <p className="px-3 py-6 text-center text-sm text-cefide-muted">No se encontraron DNI con esa búsqueda</p>}
               </div>
               <p className="text-xs text-cefide-muted">Las altas, modificaciones y bajas se aplican al presionar Guardar.</p>
+              <div className="flex items-center gap-3">
+                <Button onClick={() => handleSave('codigos', { codigosComodin: codigosComodin.join(',') })} disabled={savingSection !== null}>{savingSection === 'codigos' ? 'Guardando...' : 'Guardar'}</Button>
+                {savedSection === 'codigos' && <span className="text-sm text-cefide-success">Guardado</span>}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -382,6 +399,10 @@ export function ConfigPage() {
             <p className="text-xs text-cefide-muted">
               Clases asignadas al inscribir un alumno según su frecuencia semanal
             </p>
+            <div className="flex items-center gap-3">
+              <Button onClick={() => handleSave('frecuencias', { clasesSuelta: parseInt(clasesSuelta, 10), clasesUnaVez: parseInt(clasesUnaVez, 10), clasesDosVeces: parseInt(clasesDosVeces, 10), clasesTresVeces: parseInt(clasesTresVeces, 10), clasesCuatroVeces: parseInt(clasesCuatroVeces, 10), clasesCincoVeces: parseInt(clasesCincoVeces, 10), clasesLibre: parseInt(clasesLibre, 10), clasesBecado: parseInt(clasesBecado, 10) })} disabled={savingSection !== null}>{savingSection === 'frecuencias' ? 'Guardando...' : 'Guardar'}</Button>
+              {savedSection === 'frecuencias' && <span className="text-sm text-cefide-success">Guardado</span>}
+            </div>
           </CardContent>
         </Card>
 
@@ -430,15 +451,13 @@ export function ConfigPage() {
               (verde = acceso ok, amarillo = gracia, rojo = bloqueado) antes de
               volver a pedir el DNI.
             </p>
+            <div className="flex items-center gap-3">
+              <Button onClick={() => handleSave('molinete', { tiempoVerde: parseInt(tiempoVerde, 10), tiempoAmarillo: parseInt(tiempoAmarillo, 10), tiempoRojo: parseInt(tiempoRojo, 10) })} disabled={savingSection !== null}>{savingSection === 'molinete' ? 'Guardando...' : 'Guardar'}</Button>
+              {savedSection === 'molinete' && <span className="text-sm text-cefide-success">Guardado</span>}
+            </div>
           </CardContent>
         </Card>
 
-        <div className="flex items-center gap-3">
-          <Button onClick={handleSave} disabled={saving || !reingresoValido}>
-            {saving ? 'Guardando...' : 'Guardar'}
-          </Button>
-          {saved && <span className="text-sm text-cefide-success">Guardado</span>}
-        </div>
       </div>
     </div>
   );

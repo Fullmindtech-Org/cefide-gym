@@ -35,6 +35,26 @@ export class ReportesController {
     );
   }
 
+  @Get('deudores')
+  @Roles(Rol.ADMIN)
+  reporteDeudores(@Query('actividadId') actividadId?: string) {
+    return this.reportesService.reporteDeudores(actividadId);
+  }
+
+  @Get('deudores/excel')
+  @Roles(Rol.ADMIN)
+  async exportDeudoresExcel(
+    @Res() res: Response,
+    @Query('actividadId') actividadId?: string,
+  ) {
+    const datos = await this.reportesService.reporteDeudores(actividadId);
+    const excel = this.reportesService.generarExcelDeudores(datos);
+    const fecha = new Date().toISOString().split('T')[0];
+    res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="reporte-deudores-${fecha}.xls"`);
+    res.send(excel);
+  }
+
   @Get('actividad/csv')
   @Roles(Rol.ADMIN)
   async exportCsv(

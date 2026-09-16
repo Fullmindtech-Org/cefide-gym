@@ -94,6 +94,14 @@ export class AlumnosService {
     };
   }
 
+  async dniExiste(dni: string): Promise<{ exists: boolean }> {
+    const alumno = await this.prisma.alumno.findUnique({
+      where: { dni },
+      select: { id: true },
+    });
+    return { exists: !!alumno };
+  }
+
   async findOne(id: string, profesorId?: string) {
     let actividadIds: string[] | null = null;
     if (profesorId) {

@@ -31,6 +31,7 @@ interface ReporteInscripcion {
 
 export function ReportePage() {
   const token = useAuthStore((s) => s.token);
+  const [reporte, setReporte] = useState<'actividad' | 'deudores'>('actividad');
   const [filterActividad, setFilterActividad] = useState('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -43,7 +44,7 @@ export function ReportePage() {
   if (filterActividad !== 'all') params.set('actividadId', filterActividad);
 
   const { data } = useApiGet<ReporteInscripcion[]>(
-    `/reportes/actividad?${params.toString()}`,
+    `/reportes/${reporte === 'actividad' ? 'actividad' : 'deudores'}?${params.toString()}`,
   );
 
   const total = data?.length ?? 0;
@@ -84,6 +85,25 @@ export function ReportePage() {
       });
   }
 
+  function handleExportDeudoresExcel() {
+    const exportParams = new URLSearchParams();
+    if (filterActividad !== 'all') exportParams.set('actividadId', filterActividad);
+    fetch(`${config.apiBase}/reportes/deudores/excel?${exportParams.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('No se pudo generar el reporte');
+        return res.blob();
+      })
+      .then((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `reporte-deudores-${new Date().toISOString().split('T')[0]}.xls`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+  }
+
   function getEstadoBadge(item: ReporteInscripcion) {
     if (item.pagado && item.clasesRestantes > 0) return <Badge variant="success">VERDE</Badge>;
     if (!item.pagado && item.clasesRestantes > 0) return <Badge variant="warning">AMARILLO</Badge>;
@@ -93,12 +113,29 @@ export function ReportePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Reporte de Actividad</h2>
-        <Button onClick={handleExportCsv}>
+        <h2 className="text-xl font-semibold">Reportes</h2>
+        {reporte === 'actividad' && <Button onClick={handleExportCsv}>
           <Download className="mr-2 h-4 w-4" />
           Exportar CSV
+        </Button>}
+        {reporte === 'deudores' && <Button onClick={handleExportDeudoresExcel}>
+          <Download className="mr-2 h-4 w-4" />
+          Descargar Excel
+        </Button>}
+      </div>
+
+      <div className="flex gap-2 border-b border-cefide-border">
+        <Button variant={reporte === 'actividad' ? 'default' : 'ghost'} onClick={() => { setReporte('actividad'); setPage(1); }}>
+          Actividad
+        </Button>
+        <Button variant={reporte === 'deudores' ? 'default' : 'ghost'} onClick={() => { setReporte('deudores'); setPage(1); }}>
+          Reporte de deudores
         </Button>
       </div>
+
+      {reporte === 'deudores' && (
+        <p className="text-sm text-cefide-muted">Inscripciones activas que actualmente no tienen pago registrado.</p>
+      )}
 
       <Select value={filterActividad} onValueChange={(v) => { setFilterActividad(v); setPage(1); }}>
         <SelectTrigger className="w-[250px]">

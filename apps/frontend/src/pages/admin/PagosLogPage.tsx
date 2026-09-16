@@ -20,6 +20,7 @@ interface Pago {
     nombre: string;
     apellido: string;
   };
+  inscripcion: { actividad: { nombre: string } } | null;
 }
 
 export function PagosLogPage() {
@@ -78,6 +79,10 @@ export function PagosLogPage() {
     });
   }
 
+  function formatMes(iso: string) {
+    return new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' }).format(new Date(iso));
+  }
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Historial de Pagos</h2>
@@ -115,6 +120,8 @@ export function PagosLogPage() {
               <SortableHeader label="Fecha" field="fecha" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
               <SortableHeader label="DNI" field="dni" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
               <SortableHeader label="Alumno" field="alumno" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Actividad</th>
+              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Mes registrado</th>
               <SortableHeader label="Tipo" field="tipo" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <th className="px-4 py-3 text-right font-medium text-cefide-muted">Acciones</th>
             </tr>
@@ -128,6 +135,8 @@ export function PagosLogPage() {
                 <td className="px-4 py-3 text-cefide-muted">{formatFecha(pago.fecha)}</td>
                 <td className="px-4 py-3 font-mono">{pago.alumno.dni}</td>
                 <td className="px-4 py-3">{pago.alumno.apellido}, {pago.alumno.nombre}</td>
+                <td className="px-4 py-3">{pago.inscripcion?.actividad.nombre ?? 'Sin actividad'}</td>
+                <td className="px-4 py-3 capitalize">{formatMes(pago.fecha)}</td>
                 <td className="px-4 py-3 text-center">
                   {pago.tipo === 'PAGO' ? (
                     <Badge variant="success">Pago</Badge>
@@ -150,7 +159,7 @@ export function PagosLogPage() {
             ))}
             {data?.data.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-cefide-muted">
+                <td colSpan={7} className="px-4 py-8 text-center text-cefide-muted">
                   No se encontraron pagos
                 </td>
               </tr>

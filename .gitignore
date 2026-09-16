@@ -44,6 +44,7 @@ coverage/
 # DB dumps (datos sensibles, nunca commitear)
 dumps/
 *.dump
+.local-reports/
 
 # Datos de migración inicial (PII, no commitear)
 migration/
@@ -52,3 +53,4 @@ docs/alumnos_version8.csv
 docs/informe-seed-faltantes-local.md
 docs/informe-contactos-seed-faltantes.md
 docs/INFORME-SERVIDOR-LOCAL.md
+docs/pagos_entre_01_y_cron_2026-09.csv

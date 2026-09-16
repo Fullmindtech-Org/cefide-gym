@@ -56,6 +56,15 @@ export class AlumnosController {
     });
   }
 
+  @Get('existe-dni')
+  @Roles(Rol.ADMIN)
+  existeDni(@Query('dni') dni?: string) {
+    if (!/^\d{7,8}$/.test(dni ?? '')) {
+      throw new BadRequestException('El DNI debe tener 7 u 8 dígitos');
+    }
+    return this.alumnosService.dniExiste(dni!);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.alumnosService.findOne(

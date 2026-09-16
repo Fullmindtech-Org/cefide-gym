@@ -52,6 +52,10 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
   const [partialSuccess, setPartialSuccess] = useState(false);
 
   const isEdit = !!alumno;
+  const dniValido = /^\d{7,8}$/.test(dni);
+  const { data: dniExistente } = useApiGet<{ exists: boolean }>(
+    open && !isEdit && dniValido ? `/alumnos/existe-dni?dni=${dni}` : null,
+  );
   const { data: actividades } = useApiGet<Actividad[]>(
     open && !isEdit ? '/actividades?soloActivas=true' : null,
   );
@@ -86,7 +90,7 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (submittingRef.current || partialSuccess) return;
+    if (submittingRef.current || partialSuccess || dniExistente?.exists) return;
     submittingRef.current = true;
     setSaving(true);
     setSavingStage('alumno');
@@ -168,12 +172,15 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
             <Input
               id="dni"
               value={dni}
-              onChange={(e) => setDni(e.target.value)}
+              onChange={(e) => setDni(e.target.value.replace(/\D/g, '').slice(0, 8))}
               placeholder="12345678"
               required
               minLength={7}
               maxLength={8}
             />
+            {!isEdit && dniValido && dniExistente?.exists && (
+              <p className="text-sm text-cefide-accent-alt">Ya existe un alumno registrado con este DNI.</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -297,7 +304,7 @@ export function AlumnoFormDialog({ open, onClose, onSuccess, alumno }: Props) {
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
               {partialSuccess ? 'Cerrar' : 'Cancelar'}
             </Button>
-            {!partialSuccess && <Button type="submit" disabled={saving}>
+            {!partialSuccess && <Button type="submit" disabled={saving || dniExistente?.exists}>
               {saving && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
               {saving ? (savingStage === 'inscripcion' ? 'Creando inscripción...' : 'Creando alumno...') : isEdit ? 'Guardar' : 'Crear'}
             </Button>}
