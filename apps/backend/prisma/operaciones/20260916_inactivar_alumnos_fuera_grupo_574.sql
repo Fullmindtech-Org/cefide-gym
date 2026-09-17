@@ -1,4 +1,4 @@
-﻿-- Inactivacion masiva segura: conserva exclusivamente el grupo de 583 alumnos activos.
+-- Inactivacion masiva segura: conserva exclusivamente el grupo de 583 alumnos activos.
 -- Fuente: 418 pagadores + 149 deudores del corte 14/09, mas 7 pagos confirmados el 15/09 y 9 pagos confirmados el 16/09.
 -- Este script NO borra inscripciones, pagos ni ingresos historicos.
 -- Solo marca Alumno.activo = false; por eso se conserva toda la trazabilidad.
