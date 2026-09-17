@@ -56,6 +56,12 @@ export class AlumnosController {
     });
   }
 
+  @Get('estadisticas')
+  @Roles(Rol.ADMIN)
+  estadisticas() {
+    return this.alumnosService.estadisticas();
+  }
+
   @Get('existe-dni')
   @Roles(Rol.ADMIN)
   existeDni(@Query('dni') dni?: string) {

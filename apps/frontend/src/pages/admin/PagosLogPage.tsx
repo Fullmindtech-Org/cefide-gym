@@ -80,7 +80,7 @@ export function PagosLogPage() {
   }
 
   function formatMes(iso: string) {
-    return new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' }).format(new Date(iso));
+    return new Intl.DateTimeFormat('es-AR', { month: '2-digit', year: 'numeric' }).format(new Date(iso));
   }
 
   return (
@@ -136,7 +136,7 @@ export function PagosLogPage() {
                 <td className="px-4 py-3 font-mono">{pago.alumno.dni}</td>
                 <td className="px-4 py-3">{pago.alumno.apellido}, {pago.alumno.nombre}</td>
                 <td className="px-4 py-3">{pago.inscripcion?.actividad.nombre ?? 'Sin actividad'}</td>
-                <td className="px-4 py-3 capitalize">{formatMes(pago.fecha)}</td>
+                <td className="px-4 py-3">{formatMes(pago.fecha)}</td>
                 <td className="px-4 py-3 text-center">
                   {pago.tipo === 'PAGO' ? (
                     <Badge variant="success">Pago</Badge>

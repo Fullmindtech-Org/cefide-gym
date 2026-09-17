@@ -1,5 +1,5 @@
-﻿-- Inactivacion masiva segura: conserva exclusivamente el grupo de 574 alumnos activos.
--- Fuente: 418 pagadores + 149 deudores del corte 14/09, mas 7 pagos confirmados el 15/09.
+﻿-- Inactivacion masiva segura: conserva exclusivamente el grupo de 583 alumnos activos.
+-- Fuente: 418 pagadores + 149 deudores del corte 14/09, mas 7 pagos confirmados el 15/09 y 9 pagos confirmados el 16/09.
 -- Este script NO borra inscripciones, pagos ni ingresos historicos.
 -- Solo marca Alumno.activo = false; por eso se conserva toda la trazabilidad.
 -- Ejecutar una vez, luego de realizar un backup de produccion.
@@ -584,9 +584,18 @@ INSERT INTO alumnos_a_conservar (dni) VALUES
   ('41580128'),
   ('50535753'),
   ('36893492'),
-  ('47716865');
+  ('47716865'),
+  ('49833158'),
+  ('52873954'),
+  ('34452029'),
+  ('51054299'),
+  ('50671256'),
+  ('49413615'),
+  ('25613220'),
+  ('13587500'),
+  ('49608583');
 
--- Debe devolver 574 antes de continuar.
+-- Debe devolver 583 antes de continuar.
 SELECT count(*) AS dni_a_conservar FROM alumnos_a_conservar;
 
 -- Vista previa del alcance de la operacion.
@@ -619,3 +628,4 @@ SELECT
 FROM public."Alumno";
 
 COMMIT;
+

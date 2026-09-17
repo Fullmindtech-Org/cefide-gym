@@ -35,6 +35,13 @@ export interface ImportCsvResult {
   errores: ImportRowError[];
 }
 
+export interface AlumnoEstadisticas {
+  total: number;
+  activos: number;
+  inactivos: number;
+  activosSinInscripcion: number;
+}
+
 @Injectable()
 export class AlumnosService {
   constructor(private readonly prisma: PrismaService) {}
@@ -92,6 +99,26 @@ export class AlumnosService {
       page,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  async estadisticas(): Promise<AlumnoEstadisticas> {
+    const [estadisticas] = await this.prisma.$queryRaw<AlumnoEstadisticas[]>`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE a.activo)::int AS activos,
+        COUNT(*) FILTER (WHERE NOT a.activo)::int AS inactivos,
+        COUNT(*) FILTER (
+          WHERE a.activo
+            AND NOT EXISTS (
+              SELECT 1
+              FROM public."InscripcionActividad" i
+              WHERE i."alumnoId" = a.id
+            )
+        )::int AS "activosSinInscripcion"
+      FROM public."Alumno" a
+    `;
+
+    return estadisticas;
   }
 
   async dniExiste(dni: string): Promise<{ exists: boolean }> {

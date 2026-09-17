@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDebounce } from '@/hooks/use-debounce';
-import { Search, Plus, UserX, UserCheck, Trash2 } from 'lucide-react';
+import { Search, Plus, UserX, UserCheck, Trash2, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,13 @@ import type { Alumno, PaginatedResponse } from '@/types';
 import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
 import { toast } from 'sonner';
 import { getApiErrorMessage } from '@/lib/api';
+
+interface AlumnoEstadisticas {
+  total: number;
+  activos: number;
+  inactivos: number;
+  activosSinInscripcion: number;
+}
 
 export function AlumnosPage() {
   const token = useAuthStore((s) => s.token);
@@ -54,8 +61,11 @@ export function AlumnosPage() {
     setPage(1);
   }
 
-  const { data, mutate } = useApiGet<PaginatedResponse<Alumno>>(
+  const { data, mutate: mutateAlumnos } = useApiGet<PaginatedResponse<Alumno>>(
     `/alumnos?${params.toString()}`,
+  );
+  const { data: estadisticas, mutate: mutateEstadisticas } = useApiGet<AlumnoEstadisticas>(
+    '/alumnos/estadisticas',
   );
 
   async function toggleActivo(alumno: Alumno) {
@@ -65,7 +75,8 @@ export function AlumnosPage() {
     try {
       await api(`/alumnos/${alumno.id}/${action}`, { method: 'PATCH', token: token! });
       toast.success(alumno.activo ? 'Alumno desactivado' : 'Alumno activado');
-      void mutate();
+      void mutateAlumnos();
+      void mutateEstadisticas();
     } catch (error) { toast.error(getApiErrorMessage(error)); }
     finally { setActionId(null); }
   }
@@ -78,7 +89,8 @@ export function AlumnosPage() {
       await api(`/alumnos/${confirmDelete.id}`, { method: 'DELETE', token: token! });
       setConfirmDelete(null);
       toast.success('Alumno eliminado');
-      void mutate();
+      void mutateAlumnos();
+      void mutateEstadisticas();
     } catch (error) { toast.error(getApiErrorMessage(error)); }
     finally { setActionId(null); }
   }
@@ -101,6 +113,36 @@ export function AlumnosPage() {
           <Plus className="mr-2 h-4 w-4" />
           Nuevo Alumno
         </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div
+          className="flex items-center gap-3 rounded-lg border border-cefide-border bg-cefide-surface px-4 py-3"
+          title="Total de alumnos registrados y distribución según su estado actual."
+        >
+          <Users className="h-5 w-5 text-cefide-accent" />
+          <div>
+            <p className="text-xs font-medium text-cefide-muted">Alumnos</p>
+            <p className="text-base font-semibold leading-6">
+              <span className="text-cefide-success">Activos: {estadisticas?.activos ?? '—'}</span>
+              <span className="px-1.5 text-cefide-muted">/</span>
+              <span className="text-cefide-muted">Inactivos: {estadisticas?.inactivos ?? '—'}</span>
+            </p>
+            <p className="text-xs text-cefide-muted">
+              Total alumnos: {estadisticas?.total ?? '—'}
+            </p>
+          </div>
+        </div>
+        <div
+          className="flex items-center gap-3 rounded-lg border border-cefide-border bg-cefide-surface px-4 py-3"
+          title="Alumnos activos que actualmente no poseen ninguna inscripción activa."
+        >
+          <UserX className="h-5 w-5 text-cefide-accent-alt" />
+          <div>
+            <p className="text-xs font-medium text-cefide-muted">Sin inscripción activa</p>
+            <p className="text-xl font-semibold leading-6">{estadisticas?.activosSinInscripcion ?? '—'}</p>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -213,7 +255,10 @@ export function AlumnosPage() {
       <AlumnoFormDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onSuccess={() => mutate()}
+        onSuccess={() => {
+          void mutateAlumnos();
+          void mutateEstadisticas();
+        }}
         alumno={editAlumno}
       />
 
