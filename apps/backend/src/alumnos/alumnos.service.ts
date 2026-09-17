@@ -13,6 +13,7 @@ import { buildAlumnoSearch } from '../common/alumno-search';
 interface FindAllParams {
   search?: string;
   activo?: boolean;
+  sinInscripcionActiva?: boolean;
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -47,7 +48,7 @@ export class AlumnosService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(params: FindAllParams) {
-    const { search, activo, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
+    const { search, activo, sinInscripcionActiva, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
@@ -59,6 +60,11 @@ export class AlumnosService {
       where.activo = activo;
     }
 
+    if (sinInscripcionActiva) {
+      where.activo = true;
+      where.inscripciones = { none: {} };
+    }
+
     // Scope por profesor: solo alumnos inscriptos en las actividades del profesor.
     let actividadIds: string[] | null = null;
     if (profesorId) {
@@ -67,7 +73,9 @@ export class AlumnosService {
         select: { actividades: { select: { id: true } } },
       });
       actividadIds = prof?.actividades.map((a) => a.id) ?? [];
-      where.inscripciones = { some: { actividadId: { in: actividadIds } } };
+      where.inscripciones = sinInscripcionActiva
+        ? { none: {} }
+        : { some: { actividadId: { in: actividadIds } } };
     }
 
     const inscripcionesInclude = {

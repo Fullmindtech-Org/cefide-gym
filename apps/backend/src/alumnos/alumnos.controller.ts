@@ -39,6 +39,7 @@ export class AlumnosController {
     @CurrentUser() user: AuthUser,
     @Query('search') search?: string,
     @Query('activo') activo?: string,
+    @Query('sinInscripcionActiva') sinInscripcionActiva?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sortBy') sortBy?: string,
@@ -47,6 +48,7 @@ export class AlumnosController {
     return this.alumnosService.findAll({
       search,
       activo: activo !== undefined ? activo === 'true' : undefined,
+      sinInscripcionActiva: sinInscripcionActiva === 'true',
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
       sortBy,
