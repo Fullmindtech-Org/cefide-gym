@@ -41,6 +41,20 @@ export class ReportesController {
     return this.reportesService.reporteDeudores(actividadId);
   }
 
+  @Get('deudores/csv')
+  @Roles(Rol.ADMIN)
+  async exportDeudoresCsv(
+    @Res() res: Response,
+    @Query('actividadId') actividadId?: string,
+  ) {
+    const datos = await this.reportesService.reporteDeudores(actividadId);
+    const csv = this.reportesService.generarCsvDeudores(datos);
+    const fecha = new Date().toISOString().split('T')[0];
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="reporte-deudores-${fecha}.csv"`);
+    res.send(csv);
+  }
+
   @Get('deudores/excel')
   @Roles(Rol.ADMIN)
   async exportDeudoresExcel(

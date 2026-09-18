@@ -123,6 +123,29 @@ export class ReportesService {
     return bom + [headers, ...rows].map((r) => r.join(';')).join('\n');
   }
 
+  generarCsvDeudores(datos: ReporteDeudor[]): string {
+    const headers = [
+      'DNI',
+      'Apellido',
+      'Nombre',
+      'Actividad',
+      'Frecuencia',
+      'Clases Restantes',
+      'Estado de Pago',
+    ];
+    const rows = datos.map((d) => [
+      d.dni,
+      d.apellido,
+      d.nombre,
+      d.actividad,
+      d.frecuencia,
+      d.clasesRestantes,
+      d.pagado ? 'Pagado' : 'Adeuda',
+    ]);
+
+    return '\uFEFF' + [headers, ...rows].map((row) => row.join(';')).join('\n');
+  }
+
   generarExcelDeudores(datos: ReporteDeudor[]): string {
     const escapeXml = (value: string | number) => String(value)
       .replace(/&/g, '&amp;')

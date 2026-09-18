@@ -85,10 +85,10 @@ export function ReportePage() {
       });
   }
 
-  function handleExportDeudoresExcel() {
+  function handleExportDeudoresCsv() {
     const exportParams = new URLSearchParams();
     if (filterActividad !== 'all') exportParams.set('actividadId', filterActividad);
-    fetch(`${config.apiBase}/reportes/deudores/excel?${exportParams.toString()}`, {
+    fetch(`${config.apiBase}/reportes/deudores/csv?${exportParams.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
@@ -98,7 +98,7 @@ export function ReportePage() {
       .then((blob) => {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `reporte-deudores-${new Date().toISOString().split('T')[0]}.xls`;
+        a.download = `reporte-deudores-${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         URL.revokeObjectURL(a.href);
       });
@@ -118,9 +118,9 @@ export function ReportePage() {
           <Download className="mr-2 h-4 w-4" />
           Exportar CSV
         </Button>}
-        {reporte === 'deudores' && <Button onClick={handleExportDeudoresExcel}>
+        {reporte === 'deudores' && <Button onClick={handleExportDeudoresCsv}>
           <Download className="mr-2 h-4 w-4" />
-          Descargar Excel
+          Exportar CSV
         </Button>}
       </div>
 

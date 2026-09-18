@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDebounce } from '@/hooks/use-debounce';
-import { Search, Plus, DollarSign, Check, X, Trash2, Pencil, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { Search, Plus, DollarSign, Check, X, Trash2, Pencil, LoaderCircle, TriangleAlert, Users, UserX, ClipboardList } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,7 @@ import { useApiGet } from '@/hooks/use-api';
 import { api, ApiError, getApiErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
-import type { Actividad, Alumno, ConfigSistema, Frecuencia, InscripcionActividad, PaginatedResponse } from '@/types';
+import type { Actividad, Alumno, ConfigSistema, Frecuencia, InscripcionActividad, InscripcionEstadisticas, PaginatedResponse } from '@/types';
 import { clasesDeFrecuencia, FRECUENCIAS, FRECUENCIA_LABEL as FL, frecuenciaConClases } from '@/types';
 import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
 
@@ -41,6 +41,8 @@ export function ClasesPagosPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search);
   const [filterActividad, setFilterActividad] = useState('all');
+  const [filterAlumnoActivo, setFilterAlumnoActivo] = useState('true');
+  const [filterPago, setFilterPago] = useState('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [sortBy, setSortBy] = useState('alumno');
@@ -106,6 +108,8 @@ export function ClasesPagosPage() {
   const params = new URLSearchParams();
   if (debouncedSearch) params.set('search', debouncedSearch);
   if (filterActividad !== 'all') params.set('actividadId', filterActividad);
+  if (filterAlumnoActivo !== 'all') params.set('alumnoActivo', filterAlumnoActivo);
+  if (filterPago !== 'all') params.set('pagado', filterPago);
   params.set('page', String(page));
   params.set('limit', String(pageSize));
   params.set('sortBy', sortBy);
@@ -119,6 +123,9 @@ export function ClasesPagosPage() {
 
   const { data, mutate } = useApiGet<PaginatedResponse<InscripcionFlat>>(
     `/inscripciones?${params.toString()}`,
+  );
+  const { data: estadisticas, mutate: mutateEstadisticas } = useApiGet<InscripcionEstadisticas>(
+    '/inscripciones/estadisticas',
   );
 
   function abrirPago(ins: InscripcionFlat) {
@@ -146,6 +153,7 @@ export function ClasesPagosPage() {
         token: token!,
       });
       void mutate();
+      void mutateEstadisticas();
       setPagoSuccess(true);
     } catch (err) {
       setPagoError(getApiErrorMessage(err));
@@ -211,6 +219,7 @@ export function ClasesPagosPage() {
       setConfirmInscripcion(null);
       toast.success('Inscripción eliminada');
       void mutate();
+      void mutateEstadisticas();
     } catch (error) { toast.error(getApiErrorMessage(error)); }
     finally { setDeletingInscripcion(false); }
   }
@@ -228,6 +237,7 @@ export function ClasesPagosPage() {
       });
       setNuevaSuccess(true);
       void mutate();
+      void mutateEstadisticas();
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.kind === 'timeout') {
@@ -250,6 +260,7 @@ export function ClasesPagosPage() {
   }
 
   function getEstadoBadge(ins: InscripcionFlat) {
+    if (!ins.alumno.activo) return <Badge variant="muted">Histórica</Badge>;
     const restantes = ins.clasesTotal - ins.clasesUsadas;
     if (ins.pagado && restantes > 0) return <Badge variant="success">VERDE</Badge>;
     if (!ins.pagado && restantes > 0) return <Badge variant="warning">AMARILLO</Badge>;
@@ -264,6 +275,56 @@ export function ClasesPagosPage() {
           <Plus className="mr-2 h-4 w-4" />
           Nueva Inscripción
         </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div
+          className="flex items-center gap-3 rounded-lg border border-cefide-border bg-cefide-surface px-4 py-3"
+          title="Total de inscripciones y distribución según el estado del alumno."
+        >
+          <Users className="h-5 w-5 text-cefide-accent" />
+          <div>
+            <p className="text-xs font-medium text-cefide-muted">Inscripciones</p>
+            <p className="text-base font-semibold leading-6">
+              <span className="text-cefide-success">Activas: {estadisticas?.activas ?? '—'}</span>
+              <span className="px-1.5 text-cefide-muted">/</span>
+              <span className="text-cefide-muted">Históricas: {estadisticas?.historicas ?? '—'}</span>
+            </p>
+            <p className="text-xs text-cefide-muted">Total: {estadisticas?.total ?? '—'}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="flex items-center gap-3 rounded-lg border border-cefide-border bg-cefide-surface px-4 py-3 text-left transition-colors hover:bg-cefide-bg focus:outline-none focus:ring-2 focus:ring-cefide-accent"
+          title="Ver inscripciones de alumnos inactivos."
+          onClick={() => {
+            setFilterAlumnoActivo('false');
+            setFilterPago('all');
+            setPage(1);
+          }}
+        >
+          <UserX className="h-5 w-5 text-cefide-muted" />
+          <div>
+            <p className="text-xs font-medium text-cefide-muted">De alumnos inactivos</p>
+            <p className="text-xl font-semibold leading-6">{estadisticas?.historicas ?? '—'}</p>
+          </div>
+        </button>
+        <button
+          type="button"
+          className="flex items-center gap-3 rounded-lg border border-cefide-border bg-cefide-surface px-4 py-3 text-left transition-colors hover:bg-cefide-bg focus:outline-none focus:ring-2 focus:ring-cefide-accent"
+          title="Ver inscripciones pendientes de pago de alumnos activos."
+          onClick={() => {
+            setFilterAlumnoActivo('true');
+            setFilterPago('false');
+            setPage(1);
+          }}
+        >
+          <ClipboardList className="h-5 w-5 text-cefide-accent-alt" />
+          <div>
+            <p className="text-xs font-medium text-cefide-muted">Pendientes de pago</p>
+            <p className="text-xl font-semibold leading-6">{estadisticas?.pendientesPago ?? '—'}</p>
+          </div>
+        </button>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -285,6 +346,26 @@ export function ClasesPagosPage() {
             {actividades?.map((a) => (
               <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterAlumnoActivo} onValueChange={(v) => { setFilterAlumnoActivo(v); setPage(1); }}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Estado del alumno" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">Alumnos activos</SelectItem>
+            <SelectItem value="false">Alumnos inactivos</SelectItem>
+            <SelectItem value="all">Todos los alumnos</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterPago} onValueChange={(v) => { setFilterPago(v); setPage(1); }}>
+          <SelectTrigger className="w-[170px]">
+            <SelectValue placeholder="Estado de pago" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los pagos</SelectItem>
+            <SelectItem value="false">Pendientes de pago</SelectItem>
+            <SelectItem value="true">Pagados</SelectItem>
           </SelectContent>
         </Select>
       </div>

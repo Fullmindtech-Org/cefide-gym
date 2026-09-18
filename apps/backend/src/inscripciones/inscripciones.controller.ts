@@ -34,6 +34,8 @@ export class InscripcionesController {
     @CurrentUser() user: AuthUser,
     @Query('search') search?: string,
     @Query('actividadId') actividadId?: string,
+    @Query('alumnoActivo') alumnoActivo?: string,
+    @Query('pagado') pagado?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sortBy') sortBy?: string,
@@ -42,12 +44,19 @@ export class InscripcionesController {
     return this.inscripcionesService.findAll({
       search,
       actividadId,
+      alumnoActivo: alumnoActivo !== undefined ? alumnoActivo === 'true' : undefined,
+      pagado: pagado !== undefined ? pagado === 'true' : undefined,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
       sortBy,
       sortOrder: sortOrder === 'desc' ? 'desc' : 'asc',
       profesorId: user.rol === Rol.PROFESOR ? (user.profesorId ?? '__none__') : undefined,
     });
+  }
+
+  @Get('estadisticas')
+  estadisticas() {
+    return this.inscripcionesService.estadisticas();
   }
 
   @Get('alumno/:alumnoId')

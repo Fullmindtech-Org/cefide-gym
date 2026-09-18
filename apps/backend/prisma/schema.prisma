@@ -62,6 +62,7 @@ model Alumno {
   actualizadoEn DateTime               @updatedAt
 
   @@index([dni])
+  @@index([activo])
 }
 
 model InscripcionActividad {

@@ -11,6 +11,8 @@ import { buildAlumnoSearch } from '../common/alumno-search';
 interface FindAllParams {
   search?: string;
   actividadId?: string;
+  alumnoActivo?: boolean;
+  pagado?: boolean;
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -40,7 +42,7 @@ export class InscripcionesService {
   }
 
   async findAll(params: FindAllParams) {
-    const { search, actividadId, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
+    const { search, actividadId, alumnoActivo, pagado, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
@@ -64,7 +66,13 @@ export class InscripcionesService {
     }
 
     const alumnoSearch = buildAlumnoSearch(search);
-    if (alumnoSearch) where.alumno = alumnoSearch;
+    const alumnoWhere = {
+      ...(alumnoSearch ?? {}),
+      ...(alumnoActivo !== undefined ? { activo: alumnoActivo } : {}),
+    };
+    if (Object.keys(alumnoWhere).length > 0) where.alumno = alumnoWhere;
+
+    if (pagado !== undefined) where.pagado = pagado;
 
     const orderBy = sortBy === 'dni' ? { alumno: { dni: sortOrder } }
       : sortBy === 'alumno' ? [{ alumno: { apellido: sortOrder } }, { alumno: { nombre: sortOrder } }]
@@ -91,6 +99,25 @@ export class InscripcionesService {
     ]);
 
     return { data, total, page, totalPages: Math.ceil(total / limit) };
+  }
+
+  async estadisticas() {
+    const [estadisticas] = await this.prisma.$queryRaw<{
+      total: number;
+      activas: number;
+      historicas: number;
+      pendientesPago: number;
+    }[]>`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE a.activo)::int AS activas,
+        COUNT(*) FILTER (WHERE NOT a.activo)::int AS historicas,
+        COUNT(*) FILTER (WHERE a.activo AND NOT i.pagado)::int AS "pendientesPago"
+      FROM public."InscripcionActividad" i
+      JOIN public."Alumno" a ON a.id = i."alumnoId"
+    `;
+
+    return estadisticas;
   }
 
   async findByAlumno(alumnoId: string, profesorId?: string) {

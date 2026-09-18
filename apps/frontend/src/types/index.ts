@@ -41,6 +41,13 @@ export interface InscripcionActividad {
   creadoEn: string;
 }
 
+export interface InscripcionEstadisticas {
+  total: number;
+  activas: number;
+  historicas: number;
+  pendientesPago: number;
+}
+
 export interface Alumno {
   id: string;
   dni: string;
