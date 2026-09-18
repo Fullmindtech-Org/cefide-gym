@@ -12,6 +12,7 @@ import {
 import { useApiGet } from '@/hooks/use-api';
 import { useAuthStore } from '@/stores/auth.store';
 import { config } from '@/config/env';
+import { toast } from 'sonner';
 import { FRECUENCIA_LABEL } from '@/types';
 import type { Actividad } from '@/types';
 import { PaginationControls, SortableHeader, type SortDirection } from '@/components/admin/TableControls';
@@ -27,6 +28,7 @@ interface ReporteInscripcion {
   clasesRestantes: number;
   pagado: boolean;
   fechaPago: string | null;
+  telefono?: string | null;
 }
 
 export function ReportePage() {
@@ -68,6 +70,7 @@ export function ReportePage() {
   const paginated = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   function handleExportCsv() {
+    toast.info('Preparando la descarga...');
     const csvParams = new URLSearchParams();
     if (filterActividad !== 'all') csvParams.set('actividadId', filterActividad);
 
@@ -86,6 +89,7 @@ export function ReportePage() {
   }
 
   function handleExportDeudoresCsv() {
+    toast.info('Preparando la descarga...');
     const exportParams = new URLSearchParams();
     if (filterActividad !== 'all') exportParams.set('actividadId', filterActividad);
     fetch(`${config.apiBase}/reportes/deudores/csv?${exportParams.toString()}`, {
@@ -155,6 +159,7 @@ export function ReportePage() {
             <tr className="border-b border-cefide-border">
               <SortableHeader label="DNI" field="dni" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
               <SortableHeader label="Nombre" field="nombre" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              {reporte === 'deudores' && <th className="px-4 py-3 text-left font-medium text-cefide-muted">Teléfono</th>}
               <SortableHeader label="Actividad" field="actividad" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
               <SortableHeader label="Frecuencia" field="frecuencia" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <SortableHeader label="Realizadas" field="realizadas" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
@@ -168,6 +173,7 @@ export function ReportePage() {
               <tr key={`${item.dni}-${item.actividad}-${i}`} className="border-b border-cefide-border hover:bg-cefide-surface/50">
                 <td className="px-4 py-3 font-mono">{item.dni}</td>
                 <td className="px-4 py-3">{item.apellido}, {item.nombre}</td>
+                {reporte === 'deudores' && <td className="px-4 py-3 text-cefide-muted">{item.telefono ?? '—'}</td>}
                 <td className="px-4 py-3">{item.actividad}</td>
                 <td className="px-4 py-3 text-center text-cefide-muted">
                   {FRECUENCIA_LABEL[item.frecuencia as keyof typeof FRECUENCIA_LABEL] ?? item.frecuencia}
@@ -184,7 +190,7 @@ export function ReportePage() {
             ))}
             {data && total === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-cefide-muted">Sin datos</td>
+                <td colSpan={reporte === 'deudores' ? 9 : 8} className="px-4 py-8 text-center text-cefide-muted">Sin datos</td>
               </tr>
             )}
           </tbody>

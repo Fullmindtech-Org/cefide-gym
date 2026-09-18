@@ -14,7 +14,9 @@ export interface ReporteInscripcion {
   fechaPago: Date | null;
 }
 
-export interface ReporteDeudor extends ReporteInscripcion {}
+export interface ReporteDeudor extends ReporteInscripcion {
+  telefono: string | null;
+}
 
 @Injectable()
 export class ReportesService {
@@ -72,7 +74,7 @@ export class ReportesService {
     const inscripciones = await this.prisma.inscripcionActividad.findMany({
       where,
       include: {
-        alumno: { select: { dni: true, nombre: true, apellido: true } },
+        alumno: { select: { dni: true, nombre: true, apellido: true, telefono: true } },
         actividad: { select: { nombre: true } },
       },
       orderBy: [{ alumno: { apellido: 'asc' } }, { alumno: { nombre: 'asc' } }],
@@ -82,6 +84,7 @@ export class ReportesService {
       dni: i.alumno.dni,
       nombre: i.alumno.nombre,
       apellido: i.alumno.apellido,
+      telefono: i.alumno.telefono,
       actividad: i.actividad.nombre,
       frecuencia: i.frecuencia,
       clasesTotal: i.clasesTotal,
@@ -128,6 +131,7 @@ export class ReportesService {
       'DNI',
       'Apellido',
       'Nombre',
+      'Teléfono',
       'Actividad',
       'Frecuencia',
       'Clases Restantes',
@@ -137,6 +141,7 @@ export class ReportesService {
       d.dni,
       d.apellido,
       d.nombre,
+      d.telefono ?? '',
       d.actividad,
       d.frecuencia,
       d.clasesRestantes,
