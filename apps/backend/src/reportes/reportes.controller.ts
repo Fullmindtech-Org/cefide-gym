@@ -93,6 +93,7 @@ export class ReportesController {
     @Query('search') search?: string,
     @Query('desde') desde?: string,
     @Query('hasta') hasta?: string,
+    @Query('periodo') periodo?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sortBy') sortBy?: string,
@@ -107,7 +108,11 @@ export class ReportesController {
     const alumnoSearch = buildAlumnoSearch(search);
     if (alumnoSearch) where.alumno = alumnoSearch;
 
-    if (desde || hasta) {
+    if (periodo && /^\d{4}-(0[1-9]|1[0-2])$/.test(periodo)) {
+      const [year, month] = periodo.split('-').map(Number);
+      const siguiente = month === 12 ? new Date(Date.UTC(year + 1, 0, 1, 3)) : new Date(Date.UTC(year, month, 1, 3));
+      where.fecha = { gte: new Date(`${periodo}-01T00:00:00-03:00`), lt: siguiente };
+    } else if (desde || hasta) {
       where.fecha = {};
       if (desde) where.fecha.gte = new Date(desde);
       if (hasta) {
@@ -143,6 +148,33 @@ export class ReportesController {
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
     };
+  }
+
+  @Get('pagos/periodos')
+  @Roles(Rol.ADMIN)
+  async periodosPagos() {
+    const rows = await this.prisma.$queryRaw<Array<{ periodo: string }>>`
+      SELECT DISTINCT to_char("fecha" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM') AS periodo
+      FROM "Pago"
+      ORDER BY periodo DESC
+    `;
+    return rows.map((row) => row.periodo);
+  }
+
+  @Get('pagos/estadisticas')
+  @Roles(Rol.ADMIN)
+  async estadisticasPagos(@Query('periodo') periodo?: string) {
+    const where: Prisma.PagoWhereInput = {};
+    if (periodo && /^\d{4}-(0[1-9]|1[0-2])$/.test(periodo)) {
+      const [year, month] = periodo.split('-').map(Number);
+      const siguiente = month === 12 ? new Date(Date.UTC(year + 1, 0, 1, 3)) : new Date(Date.UTC(year, month, 1, 3));
+      where.fecha = { gte: new Date(`${periodo}-01T00:00:00-03:00`), lt: siguiente };
+    }
+    const [pagos, anulaciones] = await Promise.all([
+      this.prisma.pago.count({ where: { ...where, tipo: 'PAGO' } }),
+      this.prisma.pago.count({ where: { ...where, tipo: 'ANULACION' } }),
+    ]);
+    return { pagos, anulaciones };
   }
 
   /** Borra un registro del historial de pagos (solo log; no afecta la inscripción). */

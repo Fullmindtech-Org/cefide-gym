@@ -37,6 +37,8 @@ docker-compose.override.yml
 *.log
 npm-debug.log*
 pnpm-debug.log*
+.local-backups/
+.local-logs/
 
 # Coverage
 coverage/
@@ -54,3 +56,5 @@ docs/informe-seed-faltantes-local.md
 docs/informe-contactos-seed-faltantes.md
 docs/INFORME-SERVIDOR-LOCAL.md
 docs/pagos_entre_01_y_cron_2026-09.csv
+docs/manual-operador-renovacion-mensual.pdf
+docs/guia-operador-historial-pagos.md

@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { InscripcionesService } from './inscripciones.service';
-import { AlumnosService } from '../alumnos/alumnos.service';
+import { RenovacionesService } from '../renovaciones/renovaciones.service';
 import { CurrentUser, AuthUser } from '../auth/decorators/current-user.decorator';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
 import { PagarInscripcionDto } from './dto/pagar-inscripcion.dto';
@@ -26,7 +26,7 @@ import { Rol } from '@prisma/client';
 export class InscripcionesController {
   constructor(
     private readonly inscripcionesService: InscripcionesService,
-    private readonly alumnosService: AlumnosService,
+    private readonly renovacionesService: RenovacionesService,
   ) {}
 
   @Get()
@@ -105,7 +105,7 @@ export class InscripcionesController {
 
   @Post('renovacion-mensual')
   @Roles(Rol.ADMIN)
-  renovacionMensual() {
-    return this.alumnosService.renovacionMensual();
+  renovacionMensual(@CurrentUser() user: AuthUser) {
+    return this.renovacionesService.ejecutarManual(user.id);
   }
 }

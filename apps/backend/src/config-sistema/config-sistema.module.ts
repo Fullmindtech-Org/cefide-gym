@@ -1,11 +1,11 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { ConfigSistemaService } from './config-sistema.service';
 import { ConfigSistemaController } from './config-sistema.controller';
 import { RenovacionCron } from './renovacion.cron';
-import { AlumnosModule } from '../alumnos/alumnos.module';
+import { RenovacionesModule } from '../renovaciones/renovaciones.module';
 
 @Module({
-  imports: [AlumnosModule],
+  imports: [RenovacionesModule],
   controllers: [ConfigSistemaController],
   providers: [ConfigSistemaService, RenovacionCron],
   exports: [ConfigSistemaService],

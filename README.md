@@ -247,7 +247,7 @@ Profesor: dni, nombre, apellido
 Usuario: email, password, rol (ADMIN/PROFESOR), profesorId
 Ingreso: alumnoId, fechaHora, estado (VERDE/AMARILLO/ROJO), molinete
 Pago: alumnoId, tipo (PAGO/ANULACION), fecha
-ConfigSistema: clasesGracia, diaVencimiento
+ConfigSistema: clasesGracia, parámetros de clases, acceso y renovación mensual
 ```
 
 ### Logica de acceso (estados)
@@ -266,25 +266,13 @@ ConfigSistema: clasesGracia, diaVencimiento
 
 Cron job automatico (lunes post dia 30/31): resetea `clasesUsadas = 0` y `pagado = false` para todos los alumnos activos.
 
-### Interruptor de seguridad de la renovacion automatica
+### Renovación mensual
 
-El cron solamente puede ejecutar la renovacion si el backend recibe:
-
-```env
-RENOVACION_AUTOMATICA_HABILITADA=true
-```
-
-Si la variable no existe, esta vacia, tiene un error o vale `false`, la
-renovacion automatica queda deshabilitada y no modifica inscripciones. Durante
-la conciliacion de pagos en produccion debe configurarse explicitamente:
-
-```env
-RENOVACION_AUTOMATICA_HABILITADA=false
-```
-
-Despues de modificarla es necesario redesplegar o reiniciar el backend. El log
-de inicio informa si la renovacion automatica esta `HABILITADA` o
-`DESHABILITADA`.
+La renovación inicia en modo **Manual** y se controla desde Historial de Pagos.
+El modo automático, cuando se activa desde la interfaz, se programa en horario
+`America/Argentina/Buenos_Aires` y registra cada período en la base de datos.
+La restricción única por período evita que dos instancias o reintentos dupliquen
+una renovación.
 
 ---
 

@@ -2,3 +2,9 @@ node_modules
 **/node_modules
 .git
 **/*.tsbuildinfo
+.env
+*.log
+.local-backups
+.local-logs
+.local-reports
+docs/manual-operador-renovacion-mensual.pdf

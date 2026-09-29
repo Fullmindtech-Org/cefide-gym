@@ -77,7 +77,6 @@ export interface Profesor {
 export interface ConfigSistema {
   id: string;
   clasesGracia: number;
-  diaVencimiento: number;
   clasesUnaVez: number;
   clasesDosVeces: number;
   clasesTresVeces: number;

@@ -15,7 +15,6 @@ export function ConfigPage() {
   const { data: config, mutate } = useApiGet<ConfigSistema>('/config');
 
   const [clasesGracia, setClasesGracia] = useState('5');
-  const [diaVencimiento, setDiaVencimiento] = useState('5');
   const [clasesUnaVez, setClasesUnaVez] = useState('5');
   const [clasesDosVeces, setClasesDosVeces] = useState('9');
   const [clasesTresVeces, setClasesTresVeces] = useState('13');
@@ -42,7 +41,6 @@ export function ConfigPage() {
   useEffect(() => {
     if (config) {
       setClasesGracia(String(config.clasesGracia));
-      setDiaVencimiento(String(config.diaVencimiento));
       setClasesUnaVez(String(config.clasesUnaVez));
       setClasesDosVeces(String(config.clasesDosVeces));
       setClasesTresVeces(String(config.clasesTresVeces));
@@ -170,24 +168,6 @@ export function ConfigPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="diaVencimiento">Día de vencimiento</Label>
-              <Input
-                id="diaVencimiento"
-                type="number"
-                min="1"
-                max="28"
-                value={diaVencimiento}
-                onChange={(e) => setDiaVencimiento(e.target.value)}
-              />
-              <p className="text-xs text-cefide-muted">
-                Día del mes en que vence el período de pago
-              </p>
-              <p className="text-xs text-amber-500">
-                ⚠ Este valor se guarda pero aún no afecta el control de acceso. La gracia se calcula por ingresos del mes calendario, no por fecha límite.
-              </p>
-            </div>
-
-            <div className="space-y-2">
               <Label>Ventana de reingreso</Label>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
@@ -223,7 +203,7 @@ export function ConfigPage() {
               )}
             </div>
             <div className="flex items-center gap-3">
-              <Button onClick={() => handleSave('acceso', { clasesGracia: parseInt(clasesGracia, 10), diaVencimiento: parseInt(diaVencimiento, 10), reingresoVentanaMinutos: reingresoTotalMinutos })} disabled={savingSection !== null || !reingresoValido}>
+              <Button onClick={() => handleSave('acceso', { clasesGracia: parseInt(clasesGracia, 10), reingresoVentanaMinutos: reingresoTotalMinutos })} disabled={savingSection !== null || !reingresoValido}>
                 {savingSection === 'acceso' ? 'Guardando...' : 'Guardar'}
               </Button>
               {savedSection === 'acceso' && <span className="text-sm text-cefide-success">Guardado</span>}

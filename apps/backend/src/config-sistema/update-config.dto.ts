@@ -7,13 +7,6 @@ export class UpdateConfigDto {
   @Max(10)
   clasesGracia?: number;
 
-  /** 1-28: evita que un valor fuera de rango desactive el cron de renovación (A3). */
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(28)
-  diaVencimiento?: number;
-
   @IsOptional()
   @IsInt()
   @Min(1)

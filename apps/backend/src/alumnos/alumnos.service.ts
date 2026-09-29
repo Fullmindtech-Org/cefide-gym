@@ -473,41 +473,4 @@ export class AlumnosService {
     });
   }
 
-  async renovacionMensual(): Promise<{ renovados: number }> {
-    const config = await this.prisma.configSistema.findUnique({ where: { id: 'global' } });
-    const clasesPorFrecuencia: Record<string, number> = {
-      CLASE_SUELTA: config?.clasesSuelta ?? 1,
-      UNA_VEZ:    config?.clasesUnaVez    ?? 5,
-      DOS_VECES:  config?.clasesDosVeces  ?? 9,
-      TRES_VECES: config?.clasesTresVeces ?? 13,
-      CUATRO_VECES: config?.clasesCuatroVeces ?? 17,
-      CINCO_VECES: config?.clasesCincoVeces ?? 21,
-      LIBRE:      config?.clasesLibre     ?? 30,
-      BECADO:     config?.clasesBecado    ?? 30,
-    };
-
-    const inscripciones = await this.prisma.inscripcionActividad.findMany({
-      where: { alumno: { activo: true } },
-      select: { id: true, frecuencia: true },
-    });
-
-    await Promise.all([
-      ...inscripciones.map((ins) =>
-        this.prisma.inscripcionActividad.update({
-          where: { id: ins.id },
-          data: {
-            clasesUsadas: 0,
-            pagado: false,
-            clasesTotal: clasesPorFrecuencia[ins.frecuencia] ?? 5,
-          },
-        }),
-      ),
-      this.prisma.configSistema.update({
-        where: { id: 'global' },
-        data: { ultimaRenovacion: new Date() },
-      }),
-    ]);
-
-    return { renovados: inscripciones.length };
-  }
 }

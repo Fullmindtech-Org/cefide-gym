@@ -35,6 +35,27 @@ enum EstadoIngreso {
   ROJO
 }
 
+enum ModoRenovacion {
+  MANUAL
+  AUTOMATICO
+}
+
+enum ProgramacionRenovacion {
+  ULTIMO_DIA_MES
+  PRIMER_LUNES_HABIL
+}
+
+enum EstadoRenovacion {
+  EN_PROCESO
+  COMPLETADA
+  FALLIDA
+}
+
+enum OrigenRenovacion {
+  MANUAL
+  AUTOMATICA
+}
+
 model Actividad {
   id            String                 @id @default(cuid())
   nombre        String                 @unique
@@ -103,6 +124,8 @@ model Usuario {
   profesor      Profesor? @relation(fields: [profesorId], references: [id])
   creadoEn      DateTime  @default(now())
   tokenVersion  Int       @default(0)
+  renovaciones  EjecucionRenovacion[] @relation("UsuarioRenovacion")
+  cambiosRenovacion AuditoriaConfiguracionRenovacion[] @relation("UsuarioCambioRenovacion")
 }
 
 model Ingreso {
@@ -153,4 +176,58 @@ model ConfigSistema {
   reingresoVentanaMinutos Int @default(180)
   codigosComodin   String    @default("00000000,99999999")
   ultimaRenovacion DateTime?
+  modoRenovacion ModoRenovacion @default(MANUAL)
+  programacionRenovacion ProgramacionRenovacion @default(ULTIMO_DIA_MES)
+  // Impide que al activar el automático se ejecute retrospectivamente un período anterior.
+  automaticoDesde DateTime?
+}
+
+model RenovacionMensual {
+  id String @id @default(cuid())
+  periodo String @unique
+  estado EstadoRenovacion @default(EN_PROCESO)
+  iniciadaEn DateTime @default(now())
+  finalizadaEn DateTime?
+  totalEncontradas Int @default(0)
+  renovadas Int @default(0)
+  omitidas Int @default(0)
+  errores Int @default(0)
+  errorMensaje String?
+  ejecuciones EjecucionRenovacion[]
+
+  @@index([estado])
+}
+
+model EjecucionRenovacion {
+  id String @id @default(cuid())
+  renovacionId String
+  renovacion RenovacionMensual @relation(fields: [renovacionId], references: [id], onDelete: Cascade)
+  origen OrigenRenovacion
+  usuarioId String?
+  usuario Usuario? @relation("UsuarioRenovacion", fields: [usuarioId], references: [id], onDelete: SetNull)
+  iniciadaEn DateTime @default(now())
+  finalizadaEn DateTime?
+  estado EstadoRenovacion @default(EN_PROCESO)
+  totalEncontradas Int @default(0)
+  renovadas Int @default(0)
+  omitidas Int @default(0)
+  errores Int @default(0)
+  errorMensaje String?
+
+  @@index([renovacionId])
+  @@index([usuarioId])
+}
+
+model AuditoriaConfiguracionRenovacion {
+  id String @id @default(cuid())
+  usuarioId String?
+  usuario Usuario? @relation("UsuarioCambioRenovacion", fields: [usuarioId], references: [id], onDelete: SetNull)
+  modoAnterior ModoRenovacion
+  modoNuevo ModoRenovacion
+  programacionAnterior ProgramacionRenovacion
+  programacionNueva ProgramacionRenovacion
+  creadoEn DateTime @default(now())
+
+  @@index([creadoEn])
+  @@index([usuarioId])
 }
