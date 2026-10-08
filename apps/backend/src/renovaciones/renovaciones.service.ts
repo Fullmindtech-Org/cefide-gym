@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 const ZONA_ARGENTINA = 'America/Argentina/Buenos_Aires';
 
 type ConfiguracionInput = { modo: ModoRenovacion; programacion: ProgramacionRenovacion };
+type PagoPeriodo = { inscripcionId: string; tipo: 'PAGO' | 'ANULACION' };
 
 function partesArgentina(fecha: Date) {
   const partes = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_ARGENTINA, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(fecha);
@@ -25,6 +26,16 @@ function fechaArgentinaUtc(year: number, month: number, day: number, hour = 23, 
 function ultimoDia(year: number, month: number) { return new Date(Date.UTC(year, month, 0)).getUTCDate(); }
 function sumarMes(year: number, month: number) { return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 }; }
 function periodo(year: number, month: number) { return `${year}-${String(month).padStart(2, '0')}`; }
+
+function rangoPeriodo(periodoObjetivo: string) {
+  const [year, month] = periodoObjetivo.split('-').map(Number);
+  if (!year || !month || month < 1 || month > 12) throw new BadRequestException('Período de renovación inválido');
+  const siguiente = sumarMes(year, month);
+  return {
+    inicio: fechaArgentinaUtc(year, month, 1, 0, 0),
+    fin: fechaArgentinaUtc(siguiente.year, siguiente.month, 1, 0, 0),
+  };
+}
 
 @Injectable()
 export class RenovacionesService {
@@ -135,10 +146,28 @@ export class RenovacionesService {
         const config = await tx.configSistema.findUnique({ where: { id: 'global' } });
         if (!config) throw new BadRequestException('No existe la configuración del sistema');
         const total = await tx.inscripcionActividad.count({ where: { alumno: { activo: true } } });
+        const { inicio, fin } = rangoPeriodo(periodoObjetivo);
+        const pagosPeriodo = await tx.$queryRaw<PagoPeriodo[]>`
+          SELECT DISTINCT ON ("inscripcionId") "inscripcionId", tipo
+          FROM public."Pago"
+          WHERE "inscripcionId" IS NOT NULL
+            AND fecha >= ${inicio}
+            AND fecha < ${fin}
+          ORDER BY "inscripcionId", fecha DESC
+        `;
+        const inscripcionesPagadas = pagosPeriodo
+          .filter((pago) => pago.tipo === 'PAGO')
+          .map((pago) => pago.inscripcionId);
         for (const [frecuencia, clasesTotal] of this.clasesPorFrecuencia(config)) {
           await tx.inscripcionActividad.updateMany({ where: { frecuencia, alumno: { activo: true } }, data: { clasesUsadas: 0, clasesTotal, pagado: false, fechaPago: null } });
         }
         const finalizadaEn = new Date();
+        if (inscripcionesPagadas.length > 0) {
+          await tx.inscripcionActividad.updateMany({
+            where: { id: { in: inscripcionesPagadas }, alumno: { activo: true } },
+            data: { pagado: true, fechaPago: finalizadaEn },
+          });
+        }
         const datos = { estado: 'COMPLETADA' as const, finalizadaEn, totalEncontradas: total, renovadas: total, omitidas: 0, errores: 0, errorMensaje: null };
         await tx.renovacionMensual.update({ where: { id: renovacion.id }, data: datos });
         await tx.ejecucionRenovacion.update({ where: { id: ejecucion.id }, data: datos });

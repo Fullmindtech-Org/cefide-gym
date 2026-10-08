@@ -51,6 +51,7 @@ export function ClasesPagosPage() {
   const [pagoSaving, setPagoSaving] = useState(false);
   const [pagoSuccess, setPagoSuccess] = useState(false);
   const [pagoError, setPagoError] = useState('');
+  const [pagoMeses, setPagoMeses] = useState('1');
 
   // Clases sueltas dialog
   const [clasesDialog, setClasesDialog] = useState<string | null>(null);
@@ -130,6 +131,7 @@ export function ClasesPagosPage() {
 
   function abrirPago(ins: InscripcionFlat) {
     setPagoDialog(ins);
+    setPagoMeses('1');
     setPagoSuccess(false);
     setPagoError('');
   }
@@ -137,6 +139,7 @@ export function ClasesPagosPage() {
   function cerrarPago() {
     if (pagoSaving) return;
     setPagoDialog(null);
+    setPagoMeses('1');
     setPagoSuccess(false);
     setPagoError('');
   }
@@ -144,12 +147,17 @@ export function ClasesPagosPage() {
   async function confirmarPago() {
     if (!pagoDialog) return;
     const nuevoEstado = !pagoDialog.pagado;
+    const mesesAdelantados = nuevoEstado ? parseInt(pagoMeses, 10) : 1;
+    if (nuevoEstado && (isNaN(mesesAdelantados) || mesesAdelantados < 1 || mesesAdelantados > 12)) {
+      setPagoError('Indicá una cantidad de meses entre 1 y 12');
+      return;
+    }
     setPagoSaving(true);
     setPagoError('');
     try {
       await api(`/inscripciones/${pagoDialog.id}/pagar`, {
         method: 'PATCH',
-        body: JSON.stringify({ pagado: nuevoEstado }),
+        body: JSON.stringify({ pagado: nuevoEstado, mesesAdelantados }),
         token: token!,
       });
       void mutate();
@@ -473,6 +481,23 @@ export function ClasesPagosPage() {
                 <p><span className="text-cefide-muted">Actividad:</span> {pagoDialog.actividad.nombre}</p>
                 <p><span className="text-cefide-muted">Acción:</span> {pagoDialog.pagado ? 'Anular cobro registrado' : 'Registrar cobro'}</p>
               </div>
+              {!pagoDialog.pagado && (
+                <div className="space-y-2">
+                  <Label htmlFor="pagoMeses">Meses a registrar</Label>
+                  <Input
+                    id="pagoMeses"
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={pagoMeses}
+                    onChange={(e) => setPagoMeses(e.target.value)}
+                    disabled={pagoSaving}
+                  />
+                  <p className="text-xs text-cefide-muted">
+                    Incluye el mes actual. Por ejemplo, 3 registra este mes y los dos siguientes.
+                  </p>
+                </div>
+              )}
               {pagoError && <p className="text-sm text-cefide-accent-alt">{pagoError}</p>}
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={cerrarPago} disabled={pagoSaving}>Cancelar</Button>

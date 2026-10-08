@@ -76,7 +76,7 @@ export class InscripcionesController {
   @Patch(':id/pagar')
   @Roles(Rol.ADMIN)
   pagar(@Param('id') id: string, @Body() dto: PagarInscripcionDto) {
-    return this.inscripcionesService.pagar(id, dto.pagado);
+    return this.inscripcionesService.pagar(id, dto.pagado, dto.mesesAdelantados ?? 1);
   }
 
   @Patch(':id/clases-sueltas')
