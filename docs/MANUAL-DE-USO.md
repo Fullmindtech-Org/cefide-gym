@@ -151,6 +151,28 @@ Cuando el semáforo da verde o amarillo, el sistema le manda la orden de **abrir
 
 ---
 
+### Historial de pagos y renovación mensual
+
+El **Historial de Pagos** abre con el mes actual de Argentina preseleccionado, aunque existan pagos adelantados para meses futuros. Podés elegir otro mes o **Todos los períodos**. El selector filtra el **mes abonado**; la columna **Fecha** muestra cuándo se realizó el cobro. Los campos **Desde/Hasta** filtran por la fecha real del cobro y limpian la selección de mes. Al elegir un mes se limpia el rango de fechas.
+
+Si un alumno paga tres meses juntos, se conservan tres registros con sus distintos meses abonados, pero todos muestran el mismo instante real de pago. En registros anteriores se recupera ese instante solo cuando existe evidencia inequívoca de la primera cuota del mismo cobro; si falta, se muestra **No disponible**.
+
+La ejecución, el modo y la programación de renovación mensual están en la tarjeta **Configuración → Renovación mensual**. Configuración se organiza en tarjetas que aprovechan el ancho de la pantalla y se acomodan en columnas según el tamaño disponible. La ejecución manual conserva la vista previa y la confirmación; abrir el diálogo y cancelar no renueva las inscripciones.
+
+### Reporte de deudores de meses anteriores
+
+En **Reportes → Reporte de deudores**, el selector **Período** abre con el mes actual seleccionado, por ejemplo **Octubre de 2026**. Para consultar un mes anterior, elegilo de la lista, igual que en el historial de pagos. La lista incluye meses desde la primera inscripción activa, aun si no tuvieron pagos, y no ofrece meses futuros. Podés filtrar por actividad y descargar **CSV** o **Excel**; la descarga respeta el período y la actividad. Para volver al reporte actual, seleccioná nuevamente el mes en curso.
+
+El reporte actual excluye las inscripciones con **Realizadas = 0**. La tabla, el CSV y la hoja principal del Excel muestran las mismas nueve columnas: DNI, Nombre (apellido y nombre juntos), Teléfono, Actividad, Frecuencia, Realizadas, Restantes, Pago y Estado. Las descargas incluyen todas las filas que cumplen el filtro, aunque la tabla tenga varias páginas.
+
+El histórico lista inscripciones de alumnos actualmente activos que ya existían al cierre del mes, con al menos un ingreso permitido (verde o amarillo) a esa actividad en el mes consultado, y cuyo último movimiento de ese mes no es un pago vigente. Una anulación posterior a un pago dentro del mes vuelve a dejar la inscripción sin pago; un pago posterior a esa anulación la excluye. Los límites del mes se calculan en horario de Argentina. Los pagos adelantados se consideran por el mes de su fecha registrada.
+
+El sistema no conserva el historial de cambios de estado activo, frecuencia o actividad ni los contadores de clases de meses cerrados: por eso se usan los datos actuales y las clases aparecen como **No disponible**. Los becados se identifican para revisión y se incluyen igual que en el reporte actual. Las inscripciones sin asistencia en el mes se excluyen del reporte histórico; los ingresos rechazados, de otras actividades o fuera del mes no cuentan. Los pagos no tienen un período facturado separado: un pago registrado en otro mes no se puede imputar automáticamente al mes consultado.
+
+Esta consulta no modifica pagos, clases, renovaciones ni accesos.
+
+---
+
 ## Profesores
 
 El sistema permite cargar **profesores** y darles un usuario propio. El profesor entra con su cuenta y ve sus listados, pero **no puede cobrar ni administrar** alumnos. Eso queda solo para el encargado/administrador.

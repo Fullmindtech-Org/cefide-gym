@@ -1,6 +1,6 @@
 # Renovación mensual
 
-La renovación mensual se administra desde **Historial de Pagos**. El estado
+La renovación mensual se administra desde **Configuración → Renovación mensual**. El estado
 inicial de cualquier instalación es **Manual**: no se ejecuta una renovación
 sin una confirmación explícita del operador.
 

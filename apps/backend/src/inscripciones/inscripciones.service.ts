@@ -59,8 +59,7 @@ function sumarMeses(year: number, month: number, meses: number) {
 export class InscripcionesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private fechasPagoAdelantado(cantidadMeses: number) {
-    const ahora = new Date();
+  private fechasPagoAdelantado(cantidadMeses: number, ahora: Date) {
     const local = partesArgentina(ahora);
     return Array.from({ length: cantidadMeses }, (_, index) => {
       if (index === 0) return ahora;
@@ -223,13 +222,14 @@ export class InscripcionesService {
       });
 
       if (pagado) {
-        const fechasPago = this.fechasPagoAdelantado(mesesAdelantados);
+        const fechasPago = this.fechasPagoAdelantado(mesesAdelantados, fechaPago);
         await tx.pago.createMany({
           data: fechasPago.map((fecha, index) => ({
             alumnoId: inscripcion.alumnoId,
             inscripcionId: id,
             tipo: 'PAGO',
             fecha,
+            registradoEn: fechaPago,
             nota: fechasPago.length > 1 ? `Pago adelantado ${index + 1}/${fechasPago.length}` : null,
           })),
         });
@@ -239,6 +239,8 @@ export class InscripcionesService {
             alumnoId: inscripcion.alumnoId,
             inscripcionId: id,
             tipo: 'ANULACION',
+            fecha: fechaPago,
+            registradoEn: fechaPago,
           },
         });
       }

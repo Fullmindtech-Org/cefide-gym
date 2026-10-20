@@ -15,6 +15,7 @@ import { RolesGuard, Roles } from '../auth/guards/roles.guard';
 import { CurrentUser, AuthUser } from '../auth/decorators/current-user.decorator';
 import { Prisma, Rol } from '@prisma/client';
 import { buildAlumnoSearch } from '../common/alumno-search';
+import { filtroFechaPagos } from './filtro-fecha-pagos';
 
 @Controller('reportes')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -37,8 +38,17 @@ export class ReportesController {
 
   @Get('deudores')
   @Roles(Rol.ADMIN)
-  reporteDeudores(@Query('actividadId') actividadId?: string) {
-    return this.reportesService.reporteDeudores(actividadId);
+  reporteDeudores(
+    @Query('actividadId') actividadId?: string,
+    @Query('periodo') periodo?: string,
+  ) {
+    return this.reportesService.reporteDeudores(actividadId, periodo);
+  }
+
+  @Get('deudores/periodos')
+  @Roles(Rol.ADMIN)
+  periodosDeudores() {
+    return this.reportesService.periodosDeudores();
   }
 
   @Get('deudores/csv')
@@ -46,10 +56,11 @@ export class ReportesController {
   async exportDeudoresCsv(
     @Res() res: Response,
     @Query('actividadId') actividadId?: string,
+    @Query('periodo') periodo?: string,
   ) {
-    const datos = await this.reportesService.reporteDeudores(actividadId);
-    const csv = this.reportesService.generarCsvDeudores(datos);
-    const fecha = new Date().toISOString().split('T')[0];
+    const datos = await this.reportesService.reporteDeudores(actividadId, periodo);
+    const csv = this.reportesService.generarCsvDeudores(datos, periodo);
+    const fecha = periodo ?? new Date().toISOString().split('T')[0];
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="reporte-deudores-${fecha}.csv"`);
     res.send(csv);
@@ -60,10 +71,11 @@ export class ReportesController {
   async exportDeudoresExcel(
     @Res() res: Response,
     @Query('actividadId') actividadId?: string,
+    @Query('periodo') periodo?: string,
   ) {
-    const datos = await this.reportesService.reporteDeudores(actividadId);
-    const excel = this.reportesService.generarExcelDeudores(datos);
-    const fecha = new Date().toISOString().split('T')[0];
+    const datos = await this.reportesService.reporteDeudores(actividadId, periodo);
+    const excel = this.reportesService.generarExcelDeudores(datos, periodo);
+    const fecha = periodo ?? new Date().toISOString().split('T')[0];
     res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="reporte-deudores-${fecha}.xls"`);
     res.send(excel);
@@ -103,30 +115,15 @@ export class ReportesController {
     const limitNum = limit ? parseInt(limit, 10) : 20;
     const skip = (pageNum - 1) * limitNum;
 
-    const where: any = {};
-
+    const where: Prisma.PagoWhereInput = filtroFechaPagos(periodo, desde, hasta);
     const alumnoSearch = buildAlumnoSearch(search);
     if (alumnoSearch) where.alumno = alumnoSearch;
-
-    if (periodo && /^\d{4}-(0[1-9]|1[0-2])$/.test(periodo)) {
-      const [year, month] = periodo.split('-').map(Number);
-      const siguiente = month === 12 ? new Date(Date.UTC(year + 1, 0, 1, 3)) : new Date(Date.UTC(year, month, 1, 3));
-      where.fecha = { gte: new Date(`${periodo}-01T00:00:00-03:00`), lt: siguiente };
-    } else if (desde || hasta) {
-      where.fecha = {};
-      if (desde) where.fecha.gte = new Date(desde);
-      if (hasta) {
-        const hastaDate = new Date(hasta);
-        hastaDate.setHours(23, 59, 59, 999);
-        where.fecha.lte = hastaDate;
-      }
-    }
 
     const direction: Prisma.SortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
     const orderBy = sortBy === 'dni' ? { alumno: { dni: direction } }
       : sortBy === 'alumno' ? [{ alumno: { apellido: direction } }, { alumno: { nombre: direction } }]
       : sortBy === 'tipo' ? { tipo: direction }
-      : { fecha: direction };
+      : [{ registradoEn: { sort: direction, nulls: 'last' as const } }, { fecha: direction }, { id: direction }];
 
     const [data, total] = await Promise.all([
       this.prisma.pago.findMany({
@@ -143,7 +140,11 @@ export class ReportesController {
     ]);
 
     return {
-      data,
+      data: data.map((pago) => ({
+        ...pago,
+        // Un adelanto legado sin fecha recuperable no debe mostrarse como cobro futuro.
+        fechaImpacto: pago.registradoEn ?? (pago.nota?.startsWith('Pago adelantado ') ? null : pago.fecha),
+      })),
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
@@ -154,7 +155,7 @@ export class ReportesController {
   @Roles(Rol.ADMIN)
   async periodosPagos() {
     const rows = await this.prisma.$queryRaw<Array<{ periodo: string }>>`
-      SELECT DISTINCT to_char("fecha" AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM') AS periodo
+      SELECT DISTINCT to_char("fecha" AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM') AS periodo
       FROM "Pago"
       ORDER BY periodo DESC
     `;
@@ -163,13 +164,12 @@ export class ReportesController {
 
   @Get('pagos/estadisticas')
   @Roles(Rol.ADMIN)
-  async estadisticasPagos(@Query('periodo') periodo?: string) {
-    const where: Prisma.PagoWhereInput = {};
-    if (periodo && /^\d{4}-(0[1-9]|1[0-2])$/.test(periodo)) {
-      const [year, month] = periodo.split('-').map(Number);
-      const siguiente = month === 12 ? new Date(Date.UTC(year + 1, 0, 1, 3)) : new Date(Date.UTC(year, month, 1, 3));
-      where.fecha = { gte: new Date(`${periodo}-01T00:00:00-03:00`), lt: siguiente };
-    }
+  async estadisticasPagos(
+    @Query('periodo') periodo?: string,
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+  ) {
+    const where = filtroFechaPagos(periodo, desde, hasta);
     const [pagos, anulaciones] = await Promise.all([
       this.prisma.pago.count({ where: { ...where, tipo: 'PAGO' } }),
       this.prisma.pago.count({ where: { ...where, tipo: 'ANULACION' } }),

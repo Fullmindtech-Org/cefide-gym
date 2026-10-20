@@ -151,11 +151,14 @@ model Pago {
   inscripcion   InscripcionActividad? @relation(fields: [inscripcionId], references: [id])
   tipo          TipoPago
   fecha         DateTime              @default(now())
+  // Instante real del cobro; fecha conserva la cobertura para pagos adelantados.
+  registradoEn  DateTime?             @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text)"))
   nota          String?
 
   @@index([alumnoId])
   @@index([inscripcionId])
   @@index([fecha])
+  @@index([registradoEn])
 }
 
 model ConfigSistema {
