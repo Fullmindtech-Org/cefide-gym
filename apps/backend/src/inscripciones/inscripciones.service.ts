@@ -15,6 +15,7 @@ interface FindAllParams {
   actividadId?: string;
   alumnoActivo?: boolean;
   pagado?: boolean;
+  conClases?: boolean;
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -87,7 +88,7 @@ export class InscripcionesService {
   }
 
   async findAll(params: FindAllParams) {
-    const { search, actividadId, alumnoActivo, pagado, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
+    const { search, actividadId, alumnoActivo, pagado, conClases, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
@@ -118,6 +119,7 @@ export class InscripcionesService {
     if (Object.keys(alumnoWhere).length > 0) where.alumno = alumnoWhere;
 
     if (pagado !== undefined) where.pagado = pagado;
+    if (conClases) where.clasesUsadas = { gt: 0 };
 
     const orderBy = sortBy === 'dni' ? { alumno: { dni: sortOrder } }
       : sortBy === 'alumno' ? [{ alumno: { apellido: sortOrder } }, { alumno: { nombre: sortOrder } }]
@@ -157,7 +159,7 @@ export class InscripcionesService {
         COUNT(*)::int AS total,
         COUNT(*) FILTER (WHERE a.activo)::int AS activas,
         COUNT(*) FILTER (WHERE NOT a.activo)::int AS historicas,
-        COUNT(*) FILTER (WHERE a.activo AND NOT i.pagado)::int AS "pendientesPago"
+        COUNT(*) FILTER (WHERE a.activo AND NOT i.pagado AND i."clasesUsadas" > 0)::int AS "pendientesPago"
       FROM public."InscripcionActividad" i
       JOIN public."Alumno" a ON a.id = i."alumnoId"
     `;

@@ -110,7 +110,10 @@ export function ClasesPagosPage() {
   if (debouncedSearch) params.set('search', debouncedSearch);
   if (filterActividad !== 'all') params.set('actividadId', filterActividad);
   if (filterAlumnoActivo !== 'all') params.set('alumnoActivo', filterAlumnoActivo);
-  if (filterPago !== 'all') params.set('pagado', filterPago);
+  if (filterPago === 'deudores') {
+    params.set('pagado', 'false');
+    params.set('conClases', 'true');
+  } else if (filterPago !== 'all') params.set('pagado', filterPago);
   params.set('page', String(page));
   params.set('limit', String(pageSize));
   params.set('sortBy', sortBy);
@@ -320,10 +323,10 @@ export function ClasesPagosPage() {
         <button
           type="button"
           className="flex items-center gap-3 rounded-lg border border-cefide-border bg-cefide-surface px-4 py-3 text-left transition-colors hover:bg-cefide-bg focus:outline-none focus:ring-2 focus:ring-cefide-accent"
-          title="Ver inscripciones pendientes de pago de alumnos activos."
+          title="Ver deudores: alumnos activos con pago pendiente que ya cursaron alguna clase este mes."
           onClick={() => {
             setFilterAlumnoActivo('true');
-            setFilterPago('false');
+            setFilterPago('deudores');
             setPage(1);
           }}
         >
@@ -373,6 +376,7 @@ export function ClasesPagosPage() {
           <SelectContent>
             <SelectItem value="all">Todos los pagos</SelectItem>
             <SelectItem value="false">Pendientes de pago</SelectItem>
+            <SelectItem value="deudores">Deudores (con clases)</SelectItem>
             <SelectItem value="true">Pagados</SelectItem>
           </SelectContent>
         </Select>

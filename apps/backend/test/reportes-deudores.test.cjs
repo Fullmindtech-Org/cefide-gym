@@ -201,3 +201,25 @@ test('períodos de deudores incluyen el mes actual y meses sin pagos, sin adelan
   const controller=new ReportesController({periodosDeudores:async()=>['2026-10','2026-09']},{});
   assert.deepEqual(await controller.periodosDeudores(),['2026-10','2026-09']);
 });
+
+test('el reporte de actividad solo incluye inscripciones con al menos una clase realizada', async () => {
+  let consulta;
+  const service = new ReportesService({inscripcionActividad:{findMany:async (args) => { consulta=args; return []; }}});
+  await service.reporteActividad('yoga');
+  assert.deepEqual(consulta.where,{alumno:{activo:true},clasesUsadas:{gt:0},actividadId:'yoga'});
+});
+
+test('inscripciones: conClases filtra clases realizadas y el contador de pendientes exige clases', async () => {
+  const { InscripcionesService } = require('../src/inscripciones/inscripciones.service');
+  let consulta; let sql;
+  const service = new InscripcionesService({
+    inscripcionActividad:{findMany:async (args) => { consulta=args; return []; }, count:async () => 0},
+    $queryRaw:async (strings) => { sql=strings.join('?'); return [{}]; },
+  });
+  await service.findAll({alumnoActivo:true,pagado:false,conClases:true});
+  assert.deepEqual(consulta.where,{alumno:{activo:true},pagado:false,clasesUsadas:{gt:0}});
+  await service.findAll({alumnoActivo:true,pagado:false});
+  assert.deepEqual(consulta.where,{alumno:{activo:true},pagado:false});
+  await service.estadisticas();
+  assert.match(sql,/a\.activo AND NOT i\.pagado AND i\."clasesUsadas" > 0\)::int AS "pendientesPago"/);
+});

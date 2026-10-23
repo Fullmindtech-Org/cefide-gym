@@ -34,7 +34,8 @@ export class ReportesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async reporteActividad(actividadId?: string, profesorId?: string): Promise<ReporteInscripcion[]> {
-    const where: Record<string, unknown> = { alumno: { activo: true } };
+    // Solo quienes cursaron al menos una clase en el mes: la renovación mensual reinicia clasesUsadas.
+    const where: Record<string, unknown> = { alumno: { activo: true }, clasesUsadas: { gt: 0 } };
 
     if (profesorId) {
       const prof = await this.prisma.profesor.findUnique({
