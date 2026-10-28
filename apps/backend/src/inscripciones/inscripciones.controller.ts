@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { InscripcionesService } from './inscripciones.service';
-import { AlumnosService } from '../alumnos/alumnos.service';
+import { RenovacionesService } from '../renovaciones/renovaciones.service';
 import { CurrentUser, AuthUser } from '../auth/decorators/current-user.decorator';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
 import { PagarInscripcionDto } from './dto/pagar-inscripcion.dto';
@@ -26,7 +26,7 @@ import { Rol } from '@prisma/client';
 export class InscripcionesController {
   constructor(
     private readonly inscripcionesService: InscripcionesService,
-    private readonly alumnosService: AlumnosService,
+    private readonly renovacionesService: RenovacionesService,
   ) {}
 
   @Get()
@@ -34,6 +34,9 @@ export class InscripcionesController {
     @CurrentUser() user: AuthUser,
     @Query('search') search?: string,
     @Query('actividadId') actividadId?: string,
+    @Query('alumnoActivo') alumnoActivo?: string,
+    @Query('pagado') pagado?: string,
+    @Query('conClases') conClases?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sortBy') sortBy?: string,
@@ -42,12 +45,20 @@ export class InscripcionesController {
     return this.inscripcionesService.findAll({
       search,
       actividadId,
+      alumnoActivo: alumnoActivo !== undefined ? alumnoActivo === 'true' : undefined,
+      pagado: pagado !== undefined ? pagado === 'true' : undefined,
+      conClases: conClases === 'true',
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
       sortBy,
       sortOrder: sortOrder === 'desc' ? 'desc' : 'asc',
       profesorId: user.rol === Rol.PROFESOR ? (user.profesorId ?? '__none__') : undefined,
     });
+  }
+
+  @Get('estadisticas')
+  estadisticas() {
+    return this.inscripcionesService.estadisticas();
   }
 
   @Get('alumno/:alumnoId')
@@ -67,7 +78,7 @@ export class InscripcionesController {
   @Patch(':id/pagar')
   @Roles(Rol.ADMIN)
   pagar(@Param('id') id: string, @Body() dto: PagarInscripcionDto) {
-    return this.inscripcionesService.pagar(id, dto.pagado);
+    return this.inscripcionesService.pagar(id, dto.pagado, dto.mesesAdelantados ?? 1);
   }
 
   @Patch(':id/clases-sueltas')
@@ -96,7 +107,7 @@ export class InscripcionesController {
 
   @Post('renovacion-mensual')
   @Roles(Rol.ADMIN)
-  renovacionMensual() {
-    return this.alumnosService.renovacionMensual();
+  renovacionMensual(@CurrentUser() user: AuthUser) {
+    return this.renovacionesService.ejecutarManual(user.id);
   }
 }

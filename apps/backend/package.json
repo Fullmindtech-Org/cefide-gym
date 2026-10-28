@@ -17,7 +17,9 @@
     "seed:contactos:generate": "node prisma/migracion/generate-contactos-faltantes.cjs",
     "seed:contactos": "ts-node prisma/seed-update-contactos-faltantes.ts",
     "prisma:studio": "prisma studio",
-    "migrate:v8": "ts-node prisma/migracion/migrate.ts"
+    "migrate:v8": "ts-node prisma/migracion/migrate.ts",
+    "test:reportes": "node --require ts-node/register --test test/reportes-deudores.test.cjs",
+    "test:pagos": "node --require ts-node/register --test test/pagos.test.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

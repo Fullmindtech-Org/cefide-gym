@@ -8,9 +8,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
 import { buildAlumnoSearch } from '../common/alumno-search';
 
+const ZONA_ARGENTINA = 'America/Argentina/Buenos_Aires';
+
 interface FindAllParams {
   search?: string;
   actividadId?: string;
+  alumnoActivo?: boolean;
+  pagado?: boolean;
+  conClases?: boolean;
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -18,9 +23,52 @@ interface FindAllParams {
   profesorId?: string;
 }
 
+function partesArgentina(fecha: Date) {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ZONA_ARGENTINA,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(fecha);
+  const valor = (tipo: string) => Number(partes.find((p) => p.type === tipo)?.value);
+  return { year: valor('year'), month: valor('month'), day: valor('day'), hour: valor('hour'), minute: valor('minute'), second: valor('second') };
+}
+
+function fechaArgentinaUtc(year: number, month: number, day: number, hour = 12, minute = 0, second = 0) {
+  let resultado = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  const observado = partesArgentina(resultado);
+  const esperadoMs = Date.UTC(year, month - 1, day, hour, minute, second);
+  const observadoMs = Date.UTC(observado.year, observado.month - 1, observado.day, observado.hour, observado.minute, observado.second);
+  resultado = new Date(resultado.getTime() + esperadoMs - observadoMs);
+  return resultado;
+}
+
+function ultimoDia(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function sumarMeses(year: number, month: number, meses: number) {
+  const base = year * 12 + (month - 1) + meses;
+  return { year: Math.floor(base / 12), month: (base % 12) + 1 };
+}
+
 @Injectable()
 export class InscripcionesService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private fechasPagoAdelantado(cantidadMeses: number, ahora: Date) {
+    const local = partesArgentina(ahora);
+    return Array.from({ length: cantidadMeses }, (_, index) => {
+      if (index === 0) return ahora;
+      const objetivo = sumarMeses(local.year, local.month, index);
+      const dia = Math.min(local.day, ultimoDia(objetivo.year, objetivo.month));
+      return fechaArgentinaUtc(objetivo.year, objetivo.month, dia, local.hour, local.minute, local.second);
+    });
+  }
 
   private async clasesParaFrecuencia(frecuencia: Frecuencia): Promise<number> {
     const config = await this.prisma.configSistema.findUnique({
@@ -40,7 +88,7 @@ export class InscripcionesService {
   }
 
   async findAll(params: FindAllParams) {
-    const { search, actividadId, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
+    const { search, actividadId, alumnoActivo, pagado, conClases, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
@@ -64,7 +112,14 @@ export class InscripcionesService {
     }
 
     const alumnoSearch = buildAlumnoSearch(search);
-    if (alumnoSearch) where.alumno = alumnoSearch;
+    const alumnoWhere = {
+      ...(alumnoSearch ?? {}),
+      ...(alumnoActivo !== undefined ? { activo: alumnoActivo } : {}),
+    };
+    if (Object.keys(alumnoWhere).length > 0) where.alumno = alumnoWhere;
+
+    if (pagado !== undefined) where.pagado = pagado;
+    if (conClases) where.clasesUsadas = { gt: 0 };
 
     const orderBy = sortBy === 'dni' ? { alumno: { dni: sortOrder } }
       : sortBy === 'alumno' ? [{ alumno: { apellido: sortOrder } }, { alumno: { nombre: sortOrder } }]
@@ -91,6 +146,25 @@ export class InscripcionesService {
     ]);
 
     return { data, total, page, totalPages: Math.ceil(total / limit) };
+  }
+
+  async estadisticas() {
+    const [estadisticas] = await this.prisma.$queryRaw<{
+      total: number;
+      activas: number;
+      historicas: number;
+      pendientesPago: number;
+    }[]>`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE a.activo)::int AS activas,
+        COUNT(*) FILTER (WHERE NOT a.activo)::int AS historicas,
+        COUNT(*) FILTER (WHERE a.activo AND NOT i.pagado AND i."clasesUsadas" > 0)::int AS "pendientesPago"
+      FROM public."InscripcionActividad" i
+      JOIN public."Alumno" a ON a.id = i."alumnoId"
+    `;
+
+    return estadisticas;
   }
 
   async findByAlumno(alumnoId: string, profesorId?: string) {
@@ -137,24 +211,41 @@ export class InscripcionesService {
     }
   }
 
-  async pagar(id: string, pagado: boolean) {
+  async pagar(id: string, pagado: boolean, mesesAdelantados = 1) {
     const inscripcion = await this.prisma.inscripcionActividad.findUnique({ where: { id } });
     if (!inscripcion) throw new NotFoundException('Inscripción no encontrada');
 
     return this.prisma.$transaction(async (tx) => {
+      const fechaPago = new Date();
       const updated = await tx.inscripcionActividad.update({
         where: { id },
-        data: { pagado, fechaPago: pagado ? new Date() : null },
+        data: { pagado, fechaPago: pagado ? fechaPago : null },
         include: { actividad: true },
       });
 
-      await tx.pago.create({
-        data: {
-          alumnoId: inscripcion.alumnoId,
-          inscripcionId: id,
-          tipo: pagado ? 'PAGO' : 'ANULACION',
-        },
-      });
+      if (pagado) {
+        const fechasPago = this.fechasPagoAdelantado(mesesAdelantados, fechaPago);
+        await tx.pago.createMany({
+          data: fechasPago.map((fecha, index) => ({
+            alumnoId: inscripcion.alumnoId,
+            inscripcionId: id,
+            tipo: 'PAGO',
+            fecha,
+            registradoEn: fechaPago,
+            nota: fechasPago.length > 1 ? `Pago adelantado ${index + 1}/${fechasPago.length}` : null,
+          })),
+        });
+      } else {
+        await tx.pago.create({
+          data: {
+            alumnoId: inscripcion.alumnoId,
+            inscripcionId: id,
+            tipo: 'ANULACION',
+            fecha: fechaPago,
+            registradoEn: fechaPago,
+          },
+        });
+      }
 
       return updated;
     });

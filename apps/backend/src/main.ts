@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
+import { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -21,6 +22,29 @@ async function bootstrap() {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+  // Vite puede usar otro puerto libre en desarrollo. No se agregan estos
+  // orígenes al entorno productivo.
+  if (process.env.NODE_ENV !== 'production') {
+    corsOrigins.push('http://127.0.0.1:5186', 'http://localhost:5186');
+  }
+
+  // Respuesta explícita de preflight. Mantiene el frontend local operativo
+  // aun cuando el middleware de CORS del adaptador no intercepte OPTIONS.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+    if (origin && corsOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Vary', 'Origin');
+      if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.status(204).end();
+        return;
+      }
+    }
+    next();
+  });
 
   app.enableCors({
     origin: (

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -14,6 +14,7 @@ import { ReportesModule } from './reportes/reportes.module';
 import { ConfigSistemaModule } from './config-sistema/config-sistema.module';
 import { ActividadesModule } from './actividades/actividades.module';
 import { InscripcionesModule } from './inscripciones/inscripciones.module';
+import { RenovacionesModule } from './renovaciones/renovaciones.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -24,7 +25,7 @@ import { HealthController } from './health.controller';
     }),
     ScheduleModule.forRoot(),
     // Rate limiting global: 100 req/min por IP como base.
-    // /auth/login y /acceso/* tienen límites más estrictos con @Throttle().
+    // /auth/login y /acceso/* tienen lÃ­mites mÃ¡s estrictos con @Throttle().
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
     AuthModule,
@@ -32,6 +33,7 @@ import { HealthController } from './health.controller';
     ProfesoresModule,
     ActividadesModule,
     InscripcionesModule,
+    RenovacionesModule,
     AccesoModule,
     MolineteModule,
     IngresosModule,

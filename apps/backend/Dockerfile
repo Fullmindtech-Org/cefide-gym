@@ -1,5 +1,5 @@
 # ── Stage 1: Install dependencies ──────────────
-FROM node:20-alpine AS deps
+FROM node:22.23.4-alpine AS deps
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
@@ -20,7 +20,7 @@ RUN pnpm exec prisma generate
 RUN rm -f tsconfig.build.tsbuildinfo && pnpm run build
 
 # ── Stage 3: Production Runner ──────────────────
-FROM node:20-alpine AS runner
+FROM node:22.23.4-alpine AS runner
 
 RUN apk add --no-cache openssl
 

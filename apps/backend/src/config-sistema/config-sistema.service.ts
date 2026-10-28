@@ -16,7 +16,6 @@ export class ConfigSistemaService {
         data: {
           id: 'global',
           clasesGracia: 5,
-          diaVencimiento: 5,
           clasesUnaVez: 5,
           clasesDosVeces: 9,
           clasesTresVeces: 13,

@@ -1,5 +1,5 @@
 # ── Stage 1: Install dependencies ──────────────
-FROM node:20-alpine AS deps
+FROM node:22.23.4-alpine AS deps
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
@@ -11,7 +11,7 @@ COPY apps/frontend/package.json apps/frontend/
 RUN pnpm install --filter frontend... --frozen-lockfile
 
 # ── Stage 2: Build ─────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22.23.4-alpine AS builder
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
@@ -29,7 +29,7 @@ RUN pnpm run build
 # ── Stage 3: Serve static (dev/preview) ───────
 # Nota: en produccion, el frontend se despliega en Cloudflare Pages.
 # Este stage es solo para dev local con Docker.
-FROM node:20-alpine AS runner
+FROM node:22.23.4-alpine AS runner
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 

@@ -13,6 +13,7 @@ import { buildAlumnoSearch } from '../common/alumno-search';
 interface FindAllParams {
   search?: string;
   activo?: boolean;
+  sinInscripcionActiva?: boolean;
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -35,12 +36,19 @@ export interface ImportCsvResult {
   errores: ImportRowError[];
 }
 
+export interface AlumnoEstadisticas {
+  total: number;
+  activos: number;
+  inactivos: number;
+  activosSinInscripcion: number;
+}
+
 @Injectable()
 export class AlumnosService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(params: FindAllParams) {
-    const { search, activo, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
+    const { search, activo, sinInscripcionActiva, page = 1, limit = 20, profesorId, sortBy, sortOrder = 'asc' } = params;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
@@ -52,6 +60,11 @@ export class AlumnosService {
       where.activo = activo;
     }
 
+    if (sinInscripcionActiva) {
+      where.activo = true;
+      where.inscripciones = { none: {} };
+    }
+
     // Scope por profesor: solo alumnos inscriptos en las actividades del profesor.
     let actividadIds: string[] | null = null;
     if (profesorId) {
@@ -60,7 +73,9 @@ export class AlumnosService {
         select: { actividades: { select: { id: true } } },
       });
       actividadIds = prof?.actividades.map((a) => a.id) ?? [];
-      where.inscripciones = { some: { actividadId: { in: actividadIds } } };
+      where.inscripciones = sinInscripcionActiva
+        ? { none: {} }
+        : { some: { actividadId: { in: actividadIds } } };
     }
 
     const inscripcionesInclude = {
@@ -92,6 +107,34 @@ export class AlumnosService {
       page,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  async estadisticas(): Promise<AlumnoEstadisticas> {
+    const [estadisticas] = await this.prisma.$queryRaw<AlumnoEstadisticas[]>`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE a.activo)::int AS activos,
+        COUNT(*) FILTER (WHERE NOT a.activo)::int AS inactivos,
+        COUNT(*) FILTER (
+          WHERE a.activo
+            AND NOT EXISTS (
+              SELECT 1
+              FROM public."InscripcionActividad" i
+              WHERE i."alumnoId" = a.id
+            )
+        )::int AS "activosSinInscripcion"
+      FROM public."Alumno" a
+    `;
+
+    return estadisticas;
+  }
+
+  async dniExiste(dni: string): Promise<{ exists: boolean }> {
+    const alumno = await this.prisma.alumno.findUnique({
+      where: { dni },
+      select: { id: true },
+    });
+    return { exists: !!alumno };
   }
 
   async findOne(id: string, profesorId?: string) {
@@ -430,41 +473,4 @@ export class AlumnosService {
     });
   }
 
-  async renovacionMensual(): Promise<{ renovados: number }> {
-    const config = await this.prisma.configSistema.findUnique({ where: { id: 'global' } });
-    const clasesPorFrecuencia: Record<string, number> = {
-      CLASE_SUELTA: config?.clasesSuelta ?? 1,
-      UNA_VEZ:    config?.clasesUnaVez    ?? 5,
-      DOS_VECES:  config?.clasesDosVeces  ?? 9,
-      TRES_VECES: config?.clasesTresVeces ?? 13,
-      CUATRO_VECES: config?.clasesCuatroVeces ?? 17,
-      CINCO_VECES: config?.clasesCincoVeces ?? 21,
-      LIBRE:      config?.clasesLibre     ?? 30,
-      BECADO:     config?.clasesBecado    ?? 30,
-    };
-
-    const inscripciones = await this.prisma.inscripcionActividad.findMany({
-      where: { alumno: { activo: true } },
-      select: { id: true, frecuencia: true },
-    });
-
-    await Promise.all([
-      ...inscripciones.map((ins) =>
-        this.prisma.inscripcionActividad.update({
-          where: { id: ins.id },
-          data: {
-            clasesUsadas: 0,
-            pagado: false,
-            clasesTotal: clasesPorFrecuencia[ins.frecuencia] ?? 5,
-          },
-        }),
-      ),
-      this.prisma.configSistema.update({
-        where: { id: 'global' },
-        data: { ultimaRenovacion: new Date() },
-      }),
-    ]);
-
-    return { renovados: inscripciones.length };
-  }
 }

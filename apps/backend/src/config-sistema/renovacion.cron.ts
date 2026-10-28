@@ -1,46 +1,23 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaService } from '../prisma/prisma.service';
-import { AlumnosService } from '../alumnos/alumnos.service';
+import { RenovacionesService } from '../renovaciones/renovaciones.service';
 
 @Injectable()
 export class RenovacionCron {
   private readonly logger = new Logger(RenovacionCron.name);
+  constructor(private readonly renovaciones: RenovacionesService) {}
 
-  constructor(
-    private readonly alumnosService: AlumnosService,
-    private readonly prisma: PrismaService,
-  ) {}
-
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  // Cada instancia verifica la hora argentina; la base de datos arbitra el período.
+  @Cron(CronExpression.EVERY_MINUTE, { timeZone: 'America/Argentina/Buenos_Aires' })
   async handleRenovacion() {
-    const hoy = new Date();
-    const diaDelMes = hoy.getDate();
-
-    const config = await this.prisma.configSistema.findUnique({
-      where: { id: 'global' },
-    });
-
-    const diaVencimiento = config?.diaVencimiento ?? 5;
-
-    if (diaDelMes < diaVencimiento) {
-      return;
-    }
-
-    // Idempotencia: solo una vez por mes
-    if (config?.ultimaRenovacion) {
-      const ultima = config.ultimaRenovacion;
-      if (
-        ultima.getFullYear() === hoy.getFullYear() &&
-        ultima.getMonth() === hoy.getMonth()
-      ) {
-        this.logger.log('Renovación ya ejecutada este mes, saltando.');
-        return;
+    try {
+      const resultado = await this.renovaciones.ejecutarAutomatica();
+      if (resultado && !resultado.yaCompletada) {
+        this.logger.log(`Renovación ${resultado.periodo} completada: ${resultado.renovados} inscripciones.`);
       }
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Falló la renovación automática; se reintentará en el próximo minuto: ${mensaje}`);
     }
-
-    this.logger.log('Ejecutando renovación mensual...');
-    const resultado = await this.alumnosService.renovacionMensual();
-    this.logger.log(`Renovación completada: ${resultado.renovados} alumnos renovados`);
   }
 }

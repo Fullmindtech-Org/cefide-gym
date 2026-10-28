@@ -58,7 +58,6 @@ ConfigSistema (fila única "global")
 | Campo | Default | Uso |
 |---|---|---|
 | `clasesGracia` | 2 | clases que se permiten sin pagar al inicio del período |
-| `diaVencimiento` | 5 | día límite para regularizar — **definido pero NO usado en acceso** |
 | `clasesUnaVez` | 5 | cupo frecuencia UNA_VEZ |
 | `clasesDosVeces` | 9 | cupo DOS_VECES |
 | `clasesTresVeces` | 13 | cupo TRES_VECES |
@@ -70,7 +69,7 @@ ConfigSistema (fila única "global")
 
 **Ingreso** — registro de cada paso por molinete: `estado` (VERDE/AMARILLO/ROJO), `molinete` (1/2), `fechaHora`, `inscripcionId`.
 
-**Pago** — log: `tipo` (PAGO/ANULACION), `fecha`, `nota`, `inscripcionId`.
+**Pago** — log: `tipo` (PAGO/ANULACION), `fecha` (cobertura abonada), `registradoEn` (instante real del cobro en UTC), `nota`, `inscripcionId`. El historial expone `fechaImpacto` para mostrar el cobro real en horario argentino.
 
 **Profesor / Usuario** — Usuario tiene `rol` (ADMIN/PROFESOR). Un Profesor puede tener una cuenta Usuario asociada (1:1).
 
@@ -113,7 +112,7 @@ Al inscribir (o cambiar frecuencia), `clasesTotal` se setea desde la config:
    - **Cambiar frecuencia** → recalcula `clasesTotal` desde Configuración y permite guardar `clasesUsadas` en la misma operación (`PATCH /:id/frecuencia`)
 6. **Renovación mensual** → `POST /inscripciones/renovacion-mensual` resetea **todas** las inscripciones: `clasesUsadas=0`, `pagado=false`, `fechaPago=null`.
    - Se puede disparar manualmente desde el panel admin.
-   - **Cron automático** (`RenovacionCron`): corre todos los días a las 3 AM. Si `diaDelMes >= diaVencimiento` y aún no se ejecutó este mes (idempotente via `ultimaRenovacion`), ejecuta la renovación automáticamente.
+   - **Renovación automática:** se configura desde Configuración → Renovación mensual y usa la zona horaria de Argentina. Consulta `docs/renovacion-mensual.md`.
 
 **Baja/alta de alumno:** `PATCH /alumnos/:id/deactivate` y `/activate` togglean `activo`. Un alumno inactivo queda bloqueado en el molinete aunque tenga pagos.
 
@@ -328,8 +327,8 @@ El `molinete-driver` no corre en dev (necesita puertos COM físicos). El backend
 
 ## 12. Observaciones / huecos detectados
 
-- **`diaVencimiento`** está en config pero **no se usa**: la gracia se mide contando ingresos AMARILLO del mes, no por fecha límite.
-- **Renovación mensual**: hay cron automático (`EVERY_DAY_AT_3AM`) que ejecuta cuando `diaDelMes >= diaVencimiento`, idempotente por mes. El botón manual sigue disponible en el panel admin.
+- **`diaVencimiento`** fue retirado de la interfaz y del API de configuración. La columna se conserva temporalmente solo por compatibilidad histórica.
+- **Renovación mensual:** se configura desde Configuración → Renovación mensual, con ejecución manual o automática auditada e idempotente por período. Consulta `docs/renovacion-mensual.md`.
 - **`activo` ≠ estado de pago**: el listado de alumnos muestra el flag manual; el estado de cuota vive en las inscripciones.
 - **DNIs comodín** (`00000000`, `99999999`) dan acceso libre permanente — útil para staff/pruebas, revisar en producción.
 </content>

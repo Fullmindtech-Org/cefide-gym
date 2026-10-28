@@ -247,7 +247,7 @@ Profesor: dni, nombre, apellido
 Usuario: email, password, rol (ADMIN/PROFESOR), profesorId
 Ingreso: alumnoId, fechaHora, estado (VERDE/AMARILLO/ROJO), molinete
 Pago: alumnoId, tipo (PAGO/ANULACION), fecha
-ConfigSistema: clasesGracia, diaVencimiento
+ConfigSistema: clasesGracia, parámetros de clases, acceso y renovación mensual
 ```
 
 ### Logica de acceso (estados)
@@ -265,6 +265,14 @@ ConfigSistema: clasesGracia, diaVencimiento
 ### Renovacion mensual
 
 Cron job automatico (lunes post dia 30/31): resetea `clasesUsadas = 0` y `pagado = false` para todos los alumnos activos.
+
+### Renovación mensual
+
+La renovación inicia en modo **Manual** y se controla desde Historial de Pagos.
+El modo automático, cuando se activa desde la interfaz, se programa en horario
+`America/Argentina/Buenos_Aires` y registra cada período en la base de datos.
+La restricción única por período evita que dos instancias o reintentos dupliquen
+una renovación.
 
 ---
 
