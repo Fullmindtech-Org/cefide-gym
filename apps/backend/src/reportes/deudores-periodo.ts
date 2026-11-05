@@ -2,10 +2,10 @@ import { BadRequestException } from '@nestjs/common';
 
 export const CRITERIO_DEUDORES_HISTORICO =
   'Alumnos actualmente activos, con inscripción creada antes del cierre del mes con al menos un ingreso permitido a esa actividad en el mes y sin pago vigente registrado en ese mes. ' +
-  'Se considera el último movimiento (pago o anulación) del mes, en horario de Argentina. ' +
+  'Se considera el último movimiento (pago o anulación) imputado al mes, ordenado por la fecha real de registro, en horario de Argentina. ' +
   'El estado activo, la actividad y la frecuencia son los actuales; no existe historial de sus cambios. ' +
   'Las clases históricas no están disponibles. Se excluyen las inscripciones sin asistencia. Los becados requieren revisión antes de reclamar deuda. ' +
-  'Los pagos no tienen un período facturado separado de la fecha; no se imputan pagos de otros meses.';
+  'La fecha de cobertura identifica el mes abonado; la fecha real del cobro puede corresponder a otro mes.';
 
 export function rangoDeudoresHistorico(periodo: string, ahora = new Date()) {
   if (typeof periodo !== 'string' || !/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(periodo)) {

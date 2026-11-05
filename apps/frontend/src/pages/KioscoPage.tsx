@@ -26,6 +26,7 @@ interface AccesoResult {
   alumno: { nombre: string; apellido: string; dni: string };
   clasesRestantes: number;
   clasesGraciaRestantes: number;
+  clasesUsadas?: number;
   mensaje: string;
   actividad?: string;
 }
@@ -218,7 +219,7 @@ export function KioscoPage() {
     seleccion: 'bg-cefide-bg',
     loading_validar: 'bg-cefide-bg',
     VERDE: 'bg-cefide-success',
-    AMARILLO: 'bg-cefide-success',
+    AMARILLO: 'bg-cefide-warning',
     ROJO: 'bg-cefide-accent-alt',
     error: 'bg-cefide-accent-alt',
   }[estado];
@@ -336,7 +337,7 @@ export function KioscoPage() {
             <p className="text-2xl font-semibold">{resultado.actividad}</p>
           )}
           <p className="text-3xl font-semibold">
-            {resultado.clasesRestantes} clase{resultado.clasesRestantes !== 1 ? 's' : ''} restante{resultado.clasesRestantes !== 1 ? 's' : ''}
+            {resultado.clasesUsadas !== undefined && <>{resultado.clasesUsadas} CLASE{resultado.clasesUsadas !== 1 ? 'S' : ''} TOMADA{resultado.clasesUsadas !== 1 ? 'S' : ''}, </>}RESTAN {resultado.clasesRestantes}
           </p>
           <p className="text-xl opacity-80">ACCESO PERMITIDO</p>
         </div>
@@ -353,6 +354,9 @@ export function KioscoPage() {
           {resultado.actividad && (
             <p className="text-2xl font-semibold">{resultado.actividad}</p>
           )}
+          <p className="text-3xl font-semibold">
+            {resultado.clasesUsadas} CLASE{resultado.clasesUsadas !== 1 ? 'S' : ''} TOMADA{resultado.clasesUsadas !== 1 ? 'S' : ''}, RESTAN {resultado.clasesRestantes}
+          </p>
           <div className="mx-4 inline-flex max-w-[calc(100vw-2rem)] flex-col items-center gap-2 rounded-lg border-2 border-black/20 bg-cefide-warning px-8 py-4 shadow-lg">
             <p className="text-3xl font-bold">
               {resultado.clasesGraciaRestantes} clase{resultado.clasesGraciaRestantes !== 1 ? 's' : ''} de gracia

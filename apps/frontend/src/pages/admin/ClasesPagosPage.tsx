@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { PeriodosPago } from '@/components/admin/PeriodosPago';
+import { formatoPeriodoArgentina, periodoActualArgentina, periodoAnteriorArgentina } from '@/lib/fecha-argentina';
 import { useDebounce } from '@/hooks/use-debounce';
 import { Search, Plus, DollarSign, Check, X, Trash2, Pencil, LoaderCircle, TriangleAlert, Users, UserX, ClipboardList } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -37,12 +40,18 @@ interface NuevaInscripcionForm {
 }
 
 export function ClasesPagosPage() {
+  const [urlParams] = useSearchParams();
+  const periodoActual = periodoActualArgentina();
+  const periodoUrl = urlParams.get('periodoCobro') ?? '';
+  const periodoCobro = /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(periodoUrl) && periodoUrl <= periodoActual ? periodoUrl : periodoActual;
+  const desdeReporte = !!urlParams.get('search') && !!periodoUrl && periodoCobro === periodoUrl;
   const token = useAuthStore((s) => s.token);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(urlParams.get('search') ?? '');
   const debouncedSearch = useDebounce(search);
-  const [filterActividad, setFilterActividad] = useState('all');
+  const [filterActividad, setFilterActividad] = useState(urlParams.get('actividadId') ?? 'all');
   const [filterAlumnoActivo, setFilterAlumnoActivo] = useState('true');
   const [filterPago, setFilterPago] = useState('all');
+  const [conAsistencia, setConAsistencia] = useState(!desdeReporte);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [sortBy, setSortBy] = useState('alumno');
@@ -51,7 +60,9 @@ export function ClasesPagosPage() {
   const [pagoSaving, setPagoSaving] = useState(false);
   const [pagoSuccess, setPagoSuccess] = useState(false);
   const [pagoError, setPagoError] = useState('');
-  const [pagoMeses, setPagoMeses] = useState('1');
+  const [pagoPeriodos, setPagoPeriodos] = useState<string[]>([periodoActualArgentina()]);
+  const [pagoAnular, setPagoAnular] = useState(false);
+  const [pagoMotivo, setPagoMotivo] = useState('');
 
   // Clases sueltas dialog
   const [clasesDialog, setClasesDialog] = useState<string | null>(null);
@@ -114,6 +125,7 @@ export function ClasesPagosPage() {
     params.set('pagado', 'false');
     params.set('conClases', 'true');
   } else if (filterPago !== 'all') params.set('pagado', filterPago);
+  if (conAsistencia) params.set('conClases', 'true');
   params.set('page', String(page));
   params.set('limit', String(pageSize));
   params.set('sortBy', sortBy);
@@ -132,9 +144,11 @@ export function ClasesPagosPage() {
     '/inscripciones/estadisticas',
   );
 
-  function abrirPago(ins: InscripcionFlat) {
+  function abrirPago(ins: InscripcionFlat, anular = false) {
+    setPagoAnular(anular);
     setPagoDialog(ins);
-    setPagoMeses('1');
+    setPagoPeriodos([periodoCobro]);
+    setPagoMotivo('');
     setPagoSuccess(false);
     setPagoError('');
   }
@@ -142,17 +156,22 @@ export function ClasesPagosPage() {
   function cerrarPago() {
     if (pagoSaving) return;
     setPagoDialog(null);
-    setPagoMeses('1');
+    setPagoPeriodos([periodoActualArgentina()]);
+    setPagoMotivo('');
     setPagoSuccess(false);
     setPagoError('');
   }
 
   async function confirmarPago() {
     if (!pagoDialog) return;
-    const nuevoEstado = !pagoDialog.pagado;
-    const mesesAdelantados = nuevoEstado ? parseInt(pagoMeses, 10) : 1;
-    if (nuevoEstado && (isNaN(mesesAdelantados) || mesesAdelantados < 1 || mesesAdelantados > 12)) {
-      setPagoError('Indicá una cantidad de meses entre 1 y 12');
+    if (pagoSaving) return;
+    const nuevoEstado = !pagoAnular;
+    if (!pagoPeriodos.length || pagoPeriodos.length > 12) {
+      setPagoError('Seleccionar entre 1 y 12 meses');
+      return;
+    }
+    if (pagoAnular && !pagoMotivo.trim()) {
+      setPagoError('El motivo es obligatorio');
       return;
     }
     setPagoSaving(true);
@@ -160,7 +179,7 @@ export function ClasesPagosPage() {
     try {
       await api(`/inscripciones/${pagoDialog.id}/pagar`, {
         method: 'PATCH',
-        body: JSON.stringify({ pagado: nuevoEstado, mesesAdelantados }),
+        body: JSON.stringify({ pagado: nuevoEstado, periodos: pagoPeriodos, motivo: pagoAnular ? pagoMotivo.trim() : undefined }),
         token: token!,
       });
       void mutate();
@@ -202,7 +221,7 @@ export function ClasesPagosPage() {
       setEditError('Valores inválidos');
       return;
     }
-    const total = config ? clasesDeFrecuencia(config, editFrecuencia) : editClases.clasesTotal;
+    const total = editFrecuencia === editClases.frecuencia ? editClases.clasesTotal : config ? clasesDeFrecuencia(config, editFrecuencia) : editClases.clasesTotal;
     if (usadas > total) {
       setEditError('Las clases usadas no pueden superar el total');
       return;
@@ -272,20 +291,29 @@ export function ClasesPagosPage() {
 
   function getEstadoBadge(ins: InscripcionFlat) {
     if (!ins.alumno.activo) return <Badge variant="muted">Histórica</Badge>;
-    const restantes = ins.clasesTotal - ins.clasesUsadas;
-    if (ins.pagado && restantes > 0) return <Badge variant="success">VERDE</Badge>;
-    if (!ins.pagado && restantes > 0) return <Badge variant="warning">AMARILLO</Badge>;
-    return <Badge variant="destructive">ROJO</Badge>;
+    const estado = ins.estadoAcceso;
+    return <span title={ins.motivoAcceso}>
+      <Badge variant={estado === 'VERDE' ? 'success' : estado === 'AMARILLO' ? 'warning' : 'destructive'}>{estado ?? 'Sin estado'}</Badge>
+      {estado === 'ROJO' && <span className="mt-1 block text-xs text-cefide-muted">{ins.motivoAcceso}</span>}
+    </span>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap gap-3 items-center justify-between">
         <h2 className="text-xl font-semibold">Inscripciones y Pagos</h2>
+        <Button variant="outline" asChild>
+          <Link to={`/admin/reportes?reporte=deudores&periodo=${periodoAnteriorArgentina()}`}>Buscar deudas de meses anteriores</Link>
+        </Button>
         <Button onClick={() => setNuevaDialog(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Nueva Inscripción
         </Button>
+      </div>
+
+      <div className="space-y-1 text-sm text-cefide-muted">
+        <p>El estado de pago y las clases corresponden a <strong>{formatoPeriodoArgentina(periodoActual)}</strong>. Los pagos de otros meses se consultan en Historial de Pagos.</p>
+        {desdeReporte && <p>Seleccionaste cobrar <strong>{formatoPeriodoArgentina(periodoCobro)}</strong>. Se muestran las inscripciones sin exigir asistencia del mes actual; al abrir Cobrar se propone ese período.</p>}
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -310,6 +338,7 @@ export function ClasesPagosPage() {
           title="Ver inscripciones de alumnos inactivos."
           onClick={() => {
             setFilterAlumnoActivo('false');
+            setConAsistencia(false);
             setFilterPago('all');
             setPage(1);
           }}
@@ -327,6 +356,7 @@ export function ClasesPagosPage() {
           onClick={() => {
             setFilterAlumnoActivo('true');
             setFilterPago('deudores');
+            setConAsistencia(true);
             setPage(1);
           }}
         >
@@ -369,6 +399,10 @@ export function ClasesPagosPage() {
             <SelectItem value="all">Todos los alumnos</SelectItem>
           </SelectContent>
         </Select>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={conAsistencia} onChange={e => { setConAsistencia(e.target.checked); setPage(1); }} />
+          Con asistencia este mes
+        </label>
         <Select value={filterPago} onValueChange={(v) => { setFilterPago(v); setPage(1); }}>
           <SelectTrigger className="w-[170px]">
             <SelectValue placeholder="Estado de pago" />
@@ -382,7 +416,7 @@ export function ClasesPagosPage() {
         </Select>
       </div>
 
-      <div className="rounded-lg border border-cefide-border overflow-hidden">
+      <div className="rounded-lg border border-cefide-border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-cefide-surface">
             <tr className="border-b border-cefide-border">
@@ -391,7 +425,7 @@ export function ClasesPagosPage() {
               <SortableHeader label="Actividad" field="actividad" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
               <SortableHeader label="Frecuencia" field="frecuencia" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <SortableHeader label="Clases" field="clases" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
-              <SortableHeader label="Pago" field="pago" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
+              <SortableHeader label={`Pago de ${formatoPeriodoArgentina(periodoActual)}`} field="pago" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <SortableHeader label="Estado" field="estado" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <th className="px-4 py-3 text-right font-medium text-cefide-muted">Acciones</th>
             </tr>
@@ -410,6 +444,7 @@ export function ClasesPagosPage() {
                   <Badge variant={ins.pagado ? 'success' : 'destructive'}>
                     {ins.pagado ? 'Pagado' : 'Pendiente'}
                   </Badge>
+                  <span className="mt-1 block text-xs text-cefide-muted">{formatoPeriodoArgentina(periodoActual)}</span>
                 </td>
                 <td className="px-4 py-3 text-center">{getEstadoBadge(ins)}</td>
                 <td className="px-4 py-3 text-right">
@@ -437,7 +472,10 @@ export function ClasesPagosPage() {
                       onClick={() => abrirPago(ins)}
                     >
                       <DollarSign className="mr-1 h-3 w-3" />
-                      {ins.pagado ? 'Anular' : 'Cobrar'}
+                      Cobrar
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => abrirPago(ins, true)}>
+                      Anular
                     </Button>
                     <Button
                       variant="ghost"
@@ -455,6 +493,10 @@ export function ClasesPagosPage() {
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-cefide-muted">
                   No se encontraron inscripciones
+                  {search.trim() && <div className="mt-3 space-y-2">
+                    <p>Los filtros pueden ocultar a quienes no asistieron este mes o ya pagaron el período actual.</p>
+                    <Button variant="outline" onClick={() => { setConAsistencia(false); setFilterPago('all'); setFilterAlumnoActivo('all'); setFilterActividad('all'); setPage(1); }}>Buscar alumno sin filtros</Button>
+                  </div>}
                 </td>
               </tr>
             )}
@@ -467,12 +509,12 @@ export function ClasesPagosPage() {
       <Dialog open={!!pagoDialog} onOpenChange={(open) => !open && cerrarPago()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{pagoDialog?.pagado ? 'Confirmar anulación de cobro' : 'Confirmar cobro de actividad'}</DialogTitle>
+            <DialogTitle>{pagoAnular ? 'Confirmar anulación de cobro' : 'Confirmar cobro de actividad'}</DialogTitle>
           </DialogHeader>
           {pagoDialog && (pagoSuccess ? (
             <div className="space-y-4">
               <div className="rounded-md border border-cefide-success/30 bg-cefide-success/10 p-4 text-cefide-success">
-                <p className="font-medium">{pagoDialog.pagado ? 'Cobro anulado correctamente' : 'Cobro registrado correctamente'}</p>
+                <p className="font-medium">{pagoAnular ? 'Cobro anulado correctamente' : 'Cobro registrado correctamente'}</p>
                 <p className="mt-1 text-sm">{pagoDialog.alumno.apellido}, {pagoDialog.alumno.nombre} — {pagoDialog.actividad.nombre}</p>
               </div>
               <div className="flex justify-end"><Button onClick={cerrarPago}>Cerrar</Button></div>
@@ -483,31 +525,20 @@ export function ClasesPagosPage() {
                 <p><span className="text-cefide-muted">Alumno:</span> {pagoDialog.alumno.apellido}, {pagoDialog.alumno.nombre}</p>
                 <p><span className="text-cefide-muted">DNI:</span> <span className="font-mono">{pagoDialog.alumno.dni}</span></p>
                 <p><span className="text-cefide-muted">Actividad:</span> {pagoDialog.actividad.nombre}</p>
-                <p><span className="text-cefide-muted">Acción:</span> {pagoDialog.pagado ? 'Anular cobro registrado' : 'Registrar cobro'}</p>
+                <p><span className="text-cefide-muted">Acción:</span> {pagoAnular ? 'Anular cobro registrado' : 'Registrar cobro'}</p>
               </div>
-              {!pagoDialog.pagado && (
-                <div className="space-y-2">
-                  <Label htmlFor="pagoMeses">Meses a registrar</Label>
-                  <Input
-                    id="pagoMeses"
-                    type="number"
-                    min="1"
-                    max="12"
-                    value={pagoMeses}
-                    onChange={(e) => setPagoMeses(e.target.value)}
-                    disabled={pagoSaving}
-                  />
-                  <p className="text-xs text-cefide-muted">
-                    Incluye el mes actual. Por ejemplo, 3 registra este mes y los dos siguientes.
-                  </p>
-                </div>
-              )}
+              <PeriodosPago periodos={pagoPeriodos} onChange={setPagoPeriodos} disabled={pagoSaving} />
+              {pagoAnular && <div className="space-y-2">
+                <Label htmlFor="pagoMotivo">Motivo obligatorio</Label>
+                <Input id="pagoMotivo" value={pagoMotivo} maxLength={500} disabled={pagoSaving}
+                  onChange={e => setPagoMotivo(e.target.value)} />
+              </div>}
               {pagoError && <p className="text-sm text-cefide-accent-alt">{pagoError}</p>}
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={cerrarPago} disabled={pagoSaving}>Cancelar</Button>
-                <Button onClick={confirmarPago} disabled={pagoSaving}>
+                <Button onClick={confirmarPago} disabled={pagoSaving || !pagoPeriodos.length || (pagoAnular && !pagoMotivo.trim())}>
                   <DollarSign className="mr-1 h-4 w-4" />
-                  {pagoSaving ? 'Guardando...' : pagoDialog.pagado ? 'Confirmar anulación' : 'Confirmar cobro'}
+                  {pagoSaving ? 'Guardando...' : pagoAnular ? 'Confirmar anulación' : 'Confirmar cobro'}
                 </Button>
               </div>
             </div>
@@ -575,7 +606,7 @@ export function ClasesPagosPage() {
                     <SelectContent>
                       {FRECUENCIAS.map((opcion) => (
                         <SelectItem key={opcion} value={opcion}>
-                          {config ? frecuenciaConClases(config, opcion) : FL[opcion]}
+                          {opcion === editClases.frecuencia ? `${FL[opcion]} (${editClases.clasesTotal} clases)` : config ? frecuenciaConClases(config, opcion) : FL[opcion]}
                         </SelectItem>
                       ))}
                     </SelectContent>

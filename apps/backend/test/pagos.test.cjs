@@ -33,7 +33,7 @@ test('pago de un mes y anulación conservan fecha real y una sola operación',as
   assert.equal(movimientos.length,1);assert.equal(movimientos[0].nota,null);
   assert.equal(movimientos[0].fecha.getTime(),instante.getTime());
   assert.equal(movimientos[0].registradoEn.getTime(),instante.getTime());
-  await service.pagar('i',false);
+  await service.pagar('i',false,1,undefined,'Error de registro');
   assert.equal(movimientos[0].tipo,'ANULACION');
   assert.equal(movimientos[0].fecha.getTime(),instante.getTime());
   assert.equal(movimientos[0].registradoEn.getTime(),instante.getTime());

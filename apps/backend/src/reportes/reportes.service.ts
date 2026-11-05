@@ -1,9 +1,12 @@
+import { resumirAccesos } from '../acceso/resumen-acceso';
 import { Injectable } from '@nestjs/common';
 import { Frecuencia, Prisma } from '@prisma/client';
 import { CRITERIO_DEUDORES_HISTORICO, periodoArgentina, rangoDeudoresHistorico } from './deudores-periodo';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface ReporteInscripcion {
+  inscripcionId?: string;
+  actividadId?: string;
   dni: string;
   nombre: string;
   apellido: string;
@@ -14,6 +17,8 @@ export interface ReporteInscripcion {
   clasesRestantes: number;
   pagado: boolean;
   fechaPago: Date | null;
+  estadoAcceso?: 'VERDE' | 'AMARILLO' | 'ROJO';
+  motivoAcceso?: string;
 }
 
 export interface ReporteDeudor extends ReporteInscripcion {
@@ -62,7 +67,10 @@ export class ReportesService {
       orderBy: [{ alumno: { apellido: 'asc' } }, { alumno: { nombre: 'asc' } }],
     });
 
-    return inscripciones.map((i) => ({
+    const conEstado = await resumirAccesos(this.prisma, inscripciones.map(i => ({ ...i, alumno: { ...i.alumno, activo: true } })));
+    return conEstado.map((i) => ({
+      estadoAcceso: i.estadoAcceso,
+      motivoAcceso: i.motivoAcceso,
       dni: i.alumno.dni,
       nombre: i.alumno.nombre,
       apellido: i.alumno.apellido,
@@ -113,7 +121,10 @@ export class ReportesService {
       orderBy: [{ alumno: { apellido: 'asc' } }, { alumno: { nombre: 'asc' } }],
     });
 
-    return inscripciones.map((i) => ({
+    const conEstado = await resumirAccesos(this.prisma, inscripciones.map(i => ({ ...i, alumno: { ...i.alumno, activo: true } })));
+    return conEstado.map((i) => ({
+      estadoAcceso: i.estadoAcceso,
+      motivoAcceso: i.motivoAcceso,
       dni: i.alumno.dni,
       nombre: i.alumno.nombre,
       apellido: i.alumno.apellido,
@@ -141,9 +152,9 @@ export class ReportesService {
         FROM "Pago"
         WHERE fecha >= ${inicioUtc}::timestamp AND fecha < ${finUtc}::timestamp
           AND "inscripcionId" IS NOT NULL
-        ORDER BY "inscripcionId", fecha DESC, id DESC
+        ORDER BY "inscripcionId", COALESCE("registradoEn", fecha) DESC, fecha DESC, id DESC
       )
-      SELECT a.dni, a.nombre, a.apellido, a.telefono, act.nombre AS actividad,
+      SELECT i.id AS "inscripcionId", i."actividadId", a.dni, a.nombre, a.apellido, a.telefono, act.nombre AS actividad,
         i.frecuencia, NULL::integer AS "clasesTotal", NULL::integer AS "clasesUsadas",
         NULL::integer AS "clasesRestantes", false AS pagado, NULL::timestamp AS "fechaPago",
         ${periodo}::text AS periodo
@@ -206,7 +217,7 @@ export class ReportesService {
     const rows = datos.map((d) => {
       const estado = periodo
         ? d.frecuencia === 'BECADO' ? 'Becado: revisar' : 'Sin pago registrado'
-        : (d.clasesRestantes ?? 0) > 0 ? d.pagado ? 'VERDE' : 'AMARILLO' : 'ROJO';
+        : d.estadoAcceso ?? ((d.clasesRestantes ?? 0) > 0 ? d.pagado ? 'VERDE' : 'AMARILLO' : 'ROJO');
       return [
         d.dni, `${d.apellido}, ${d.nombre}`, d.telefono ?? '—', d.actividad,
         frecuencias[d.frecuencia as Frecuencia] ?? d.frecuencia,

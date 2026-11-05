@@ -36,11 +36,14 @@ test('rechaza períodos inválidos, actual, futuro y parámetros repetidos', () 
 
 test('el reporte actual exige clases realizadas mayores a cero y conserva el filtro de actividad', async () => {
   let consulta;
-  const service = new ReportesService({inscripcionActividad:{findMany:async (args) => {
+  const service = new ReportesService({configSistema:{findUnique:async()=>({clasesGracia:5})}, ingreso:{findMany:async()=>[]}, inscripcionActividad:{findMany:async (args) => {
     consulta=args;
     return [{...sample,alumno:sample,actividad:{nombre:sample.actividad}}];
   }}});
-  assert.deepEqual(await service.reporteDeudores('yoga'),[sample]);
+  const [fila] = await service.reporteDeudores('yoga');
+  const { estadoAcceso, motivoAcceso, ...datos } = fila;
+  assert.deepEqual(datos,sample);
+  assert.equal(estadoAcceso,'AMARILLO');
   assert.deepEqual(consulta.where,{alumno:{activo:true},pagado:false,clasesUsadas:{gt:0},actividadId:'yoga'});
 });
 
@@ -117,6 +120,7 @@ test('PostgreSQL: pagos, anulaciones, adelantos, límites, actividades e inscrip
       for(const name of ['Alumno','Actividad','InscripcionActividad','Pago','Ingreso']) {
         await tx.$executeRawUnsafe('CREATE TEMP TABLE "'+name+'" (LIKE public."'+name+'" INCLUDING DEFAULTS) ON COMMIT DROP');
       }
+      await tx.$executeRawUnsafe('ALTER TABLE pg_temp."Pago" ADD COLUMN IF NOT EXISTS "registradoEn" TIMESTAMP(3)');
       await tx.$executeRawUnsafe(`INSERT INTO "Actividad" (id,nombre) VALUES ('yoga','Yoga'),('gym','Gimnasio')`);
       const cases=[
         ['sin-pago',true,'2024-08-01','UNA_VEZ','yoga',[]],
@@ -217,7 +221,8 @@ test('inscripciones: conClases filtra clases realizadas y el contador de pendien
     $queryRaw:async (strings) => { sql=strings.join('?'); return [{}]; },
   });
   await service.findAll({alumnoActivo:true,pagado:false,conClases:true});
-  assert.deepEqual(consulta.where,{alumno:{activo:true},pagado:false,clasesUsadas:{gt:0}});
+  const { rangoMesActual } = require('../src/acceso/estado-acceso');
+  assert.deepEqual(consulta.where,{alumno:{activo:true},pagado:false,ingresos:{some:{estado:{in:['VERDE','AMARILLO']},fechaHora:rangoMesActual()}}});
   await service.findAll({alumnoActivo:true,pagado:false});
   assert.deepEqual(consulta.where,{alumno:{activo:true},pagado:false});
   await service.estadisticas();

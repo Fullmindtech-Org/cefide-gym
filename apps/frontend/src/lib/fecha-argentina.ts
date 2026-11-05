@@ -12,3 +12,8 @@ export function formatoPeriodoArgentina(periodo: string) {
   }).format(new Date(periodo + '-01T12:00:00-03:00'))
     .replace(/^./, (letter) => letter.toUpperCase());
 }
+
+export function periodoAnteriorArgentina(ahora = new Date()) {
+  const [year, month] = periodoActualArgentina(ahora).split('-').map(Number);
+  return new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
+}

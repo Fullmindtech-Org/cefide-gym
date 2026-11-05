@@ -36,6 +36,8 @@ export interface InscripcionActividad {
   frecuencia: Frecuencia;
   clasesTotal: number;
   clasesUsadas: number;
+  estadoAcceso?: 'VERDE' | 'AMARILLO' | 'ROJO';
+  motivoAcceso?: string;
   pagado: boolean;
   fechaPago: string | null;
   creadoEn: string;

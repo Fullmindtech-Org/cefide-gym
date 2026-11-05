@@ -47,6 +47,7 @@ coverage/
 dumps/
 *.dump
 .local-reports/
+.local-build/
 
 # Datos de migración inicial (PII, no commitear)
 migration/

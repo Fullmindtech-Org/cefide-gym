@@ -1,21 +1,10 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EstadoIngreso, Prisma } from '@prisma/client';
+import { contarSesionesDeGracia, rangoMesActual, estadoAcceso } from './estado-acceso';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DNIS_COMODIN_DEFAULT = ['00000000', '99999999'];
 const REINGRESO_VENTANA_MINUTOS_DEFAULT = 180;
-
-function contarSesionesDeGracia(fechas: Date[], ventanaReingresoMs: number): number {
-  let sesiones = 0;
-  let ultimoIngreso: Date | null = null;
-  for (const fecha of fechas) {
-    if (!ultimoIngreso || fecha.getTime() - ultimoIngreso.getTime() >= ventanaReingresoMs) {
-      sesiones++;
-    }
-    ultimoIngreso = fecha;
-  }
-  return sesiones;
-}
 
 export interface ResultadoAcceso {
   estado: EstadoIngreso;
@@ -26,6 +15,7 @@ export interface ResultadoAcceso {
   };
   clasesRestantes: number;
   clasesGraciaRestantes: number;
+  clasesUsadas?: number;
   mensaje: string;
   actividad?: string;
 }
@@ -199,16 +189,14 @@ export class AccesoService {
               (config?.reingresoVentanaMinutos ?? REINGRESO_VENTANA_MINUTOS_DEFAULT) * 60 * 1000;
             const clasesRestantes = inscripcion.clasesTotal - inscripcion.clasesUsadas;
             const actividad = inscripcion.actividad.nombre;
-            const inicioMes = new Date();
-            inicioMes.setDate(1);
-            inicioMes.setHours(0, 0, 0, 0);
+            const mesActual = rangoMesActual();
             const ingresosAmarillos = inscripcion.pagado
               ? []
               : await tx.ingreso.findMany({
                   where: {
                     inscripcionId,
                     estado: EstadoIngreso.AMARILLO,
-                    fechaHora: { gte: inicioMes },
+                    fechaHora: mesActual,
                   },
                   select: { fechaHora: true },
                   orderBy: { fechaHora: 'asc' },
@@ -231,10 +219,10 @@ export class AccesoService {
               orderBy: { fechaHora: 'desc' },
             });
 
+            const acceso = estadoAcceso(inscripcion, alumno.activo,
+              clasesGraciaMax - sesionesGracia, !!ingresoReciente);
             if (ingresoReciente) {
-              const estadoReingreso = inscripcion.pagado
-                ? EstadoIngreso.VERDE
-                : EstadoIngreso.AMARILLO;
+              const estadoReingreso = acceso.estado;
               await tx.ingreso.create({
                 data: { alumnoId: alumno.id, inscripcionId, estado: estadoReingreso, molinete },
               });
@@ -242,6 +230,7 @@ export class AccesoService {
                 estado: estadoReingreso,
                 alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
                 clasesRestantes,
+                clasesUsadas: inscripcion.clasesUsadas,
                 clasesGraciaRestantes: inscripcion.pagado
                   ? 0
                   : Math.max(0, clasesGraciaMax - sesionesGracia),
@@ -250,7 +239,7 @@ export class AccesoService {
               };
             }
 
-            if (clasesRestantes <= 0) {
+            if (acceso.estado === EstadoIngreso.ROJO && clasesRestantes <= 0) {
               await tx.ingreso.create({
                 data: { alumnoId: alumno.id, inscripcionId, estado: EstadoIngreso.ROJO, molinete },
               });
@@ -266,7 +255,7 @@ export class AccesoService {
 
             const clasesRestantesPost = clasesRestantes - 1;
 
-            if (inscripcion.pagado) {
+            if (acceso.estado === EstadoIngreso.VERDE) {
               await tx.ingreso.create({
                 data: { alumnoId: alumno.id, inscripcionId, estado: EstadoIngreso.VERDE, molinete },
               });
@@ -278,6 +267,7 @@ export class AccesoService {
                 estado: EstadoIngreso.VERDE,
                 alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
                 clasesRestantes: clasesRestantesPost,
+                clasesUsadas: inscripcion.clasesUsadas + 1,
                 clasesGraciaRestantes: 0,
                 mensaje: `Acceso permitido — ${clasesRestantesPost} clase(s) restante(s) en ${actividad}`,
                 actividad,
@@ -287,7 +277,7 @@ export class AccesoService {
             // Sin pago — verificar clases de gracia.
             const clasesGraciaRestantes = clasesGraciaMax - sesionesGracia;
 
-            if (clasesGraciaRestantes > 0) {
+            if (acceso.estado === EstadoIngreso.AMARILLO) {
               await tx.ingreso.create({
                 data: { alumnoId: alumno.id, inscripcionId, estado: EstadoIngreso.AMARILLO, molinete },
               });
@@ -299,6 +289,7 @@ export class AccesoService {
                 estado: EstadoIngreso.AMARILLO,
                 alumno: { nombre: alumno.nombre, apellido: alumno.apellido, dni },
                 clasesRestantes: clasesRestantesPost,
+                clasesUsadas: inscripcion.clasesUsadas + 1,
                 clasesGraciaRestantes: clasesGraciaRestantes - 1,
                 mensaje: `${clasesGraciaRestantes - 1} clase(s) de gracia restante(s) en ${actividad}. Regularizar pago.`,
                 actividad,

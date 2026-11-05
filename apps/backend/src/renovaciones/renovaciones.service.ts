@@ -153,7 +153,7 @@ export class RenovacionesService {
           WHERE "inscripcionId" IS NOT NULL
             AND fecha >= ${inicio}
             AND fecha < ${fin}
-          ORDER BY "inscripcionId", fecha DESC
+          ORDER BY "inscripcionId", COALESCE("registradoEn", fecha) DESC, fecha DESC, id DESC
         `;
         const inscripcionesPagadas = pagosPeriodo
           .filter((pago) => pago.tipo === 'PAGO')

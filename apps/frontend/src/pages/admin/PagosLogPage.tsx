@@ -157,7 +157,7 @@ export function PagosLogPage() {
         />
       </div>
 
-      <div className="rounded-lg border border-cefide-border overflow-hidden">
+      <div className="rounded-lg border border-cefide-border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-cefide-surface">
             <tr className="border-b border-cefide-border">
@@ -166,6 +166,7 @@ export function PagosLogPage() {
               <SortableHeader label="Alumno" field="alumno" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
               <th className="px-4 py-3 text-left font-medium text-cefide-muted">Actividad</th>
               <th className="px-4 py-3 text-left font-medium text-cefide-muted">Mes abonado</th>
+              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Nota / motivo</th>
               <SortableHeader label="Tipo" field="tipo" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <th className="px-4 py-3 text-right font-medium text-cefide-muted">Acciones</th>
             </tr>
@@ -183,6 +184,7 @@ export function PagosLogPage() {
                 <td className="px-4 py-3">{pago.alumno.apellido}, {pago.alumno.nombre}</td>
                 <td className="px-4 py-3">{pago.inscripcion?.actividad.nombre ?? 'Sin actividad'}</td>
                 <td className="px-4 py-3">{formatMes(pago.fecha)}</td>
+                <td className="px-4 py-3 max-w-xs break-words">{pago.nota || '—'}</td>
                 <td className="px-4 py-3 text-center">
                   {pago.tipo === 'PAGO' ? (
                     <Badge variant="success">Pago</Badge>
@@ -205,7 +207,7 @@ export function PagosLogPage() {
             ))}
             {data?.data.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-cefide-muted">
+                <td colSpan={8} className="px-4 py-8 text-center text-cefide-muted">
                   No se encontraron pagos
                 </td>
               </tr>

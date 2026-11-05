@@ -18,6 +18,7 @@ interface Ingreso {
   fechaHora: string;
   estado: 'VERDE' | 'AMARILLO' | 'ROJO';
   molinete: number;
+  inscripcion?: { actividad: { nombre: string } } | null;
   alumno: {
     dni: string;
     nombre: string;
@@ -88,6 +89,7 @@ export function IngresosLogPage() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Log de Ingresos</h2>
+      <p className="text-sm text-cefide-muted">El color indica el estado al momento de cada ingreso. Un ingreso amarillo anterior al pago conserva su color y no significa que exista una deuda actual. Consultá el mes abonado en Historial de Pagos.</p>
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-3">
@@ -141,13 +143,14 @@ export function IngresosLogPage() {
       </div>
 
       {/* Tabla */}
-      <div className="rounded-lg border border-cefide-border overflow-hidden">
+      <div className="rounded-lg border border-cefide-border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-cefide-surface">
             <tr className="border-b border-cefide-border">
               <SortableHeader label="Fecha/Hora" field="fecha" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
               <SortableHeader label="DNI" field="dni" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
               <SortableHeader label="Nombre" field="nombre" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+              <th className="px-4 py-3 text-left font-medium text-cefide-muted">Actividad</th>
               <SortableHeader label="Profesor" field="profesor" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
               <SortableHeader label="Estado" field="estado" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
               <SortableHeader label="Molinete" field="molinete" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="center" />
@@ -159,6 +162,7 @@ export function IngresosLogPage() {
                 <td className="px-4 py-3 font-mono text-xs">{formatFecha(ing.fechaHora)}</td>
                 <td className="px-4 py-3 font-mono">{ing.alumno.dni}</td>
                 <td className="px-4 py-3">{ing.alumno.apellido}, {ing.alumno.nombre}</td>
+                <td className="px-4 py-3">{ing.inscripcion?.actividad.nombre ?? 'Sin actividad registrada'}</td>
                 <td className="px-4 py-3 text-cefide-muted">
                   {ing.alumno.profesor
                     ? `${ing.alumno.profesor.apellido}, ${ing.alumno.profesor.nombre}`
@@ -172,7 +176,7 @@ export function IngresosLogPage() {
             ))}
             {data?.data.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-cefide-muted">
+                <td colSpan={7} className="px-4 py-8 text-center text-cefide-muted">
                   No se encontraron ingresos
                 </td>
               </tr>

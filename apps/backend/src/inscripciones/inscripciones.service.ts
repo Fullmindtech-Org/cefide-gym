@@ -1,10 +1,14 @@
 import {
   Injectable,
+  BadRequestException,
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { Frecuencia, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { rangoMesActual } from '../acceso/estado-acceso';
+import { resumirAccesos } from '../acceso/resumen-acceso';
+import { periodoArgentina } from '../reportes/deudores-periodo';
 import { CreateInscripcionDto } from './dto/create-inscripcion.dto';
 import { buildAlumnoSearch } from '../common/alumno-search';
 
@@ -119,7 +123,7 @@ export class InscripcionesService {
     if (Object.keys(alumnoWhere).length > 0) where.alumno = alumnoWhere;
 
     if (pagado !== undefined) where.pagado = pagado;
-    if (conClases) where.clasesUsadas = { gt: 0 };
+    if (conClases) where.ingresos = { some: { estado: { in: ['VERDE', 'AMARILLO'] }, fechaHora: rangoMesActual() } };
 
     const orderBy = sortBy === 'dni' ? { alumno: { dni: sortOrder } }
       : sortBy === 'alumno' ? [{ alumno: { apellido: sortOrder } }, { alumno: { nombre: sortOrder } }]
@@ -145,7 +149,8 @@ export class InscripcionesService {
       this.prisma.inscripcionActividad.count({ where }),
     ]);
 
-    return { data, total, page, totalPages: Math.ceil(total / limit) };
+    const resultado = await resumirAccesos(this.prisma, data);
+    return { data: resultado, total, page, totalPages: Math.ceil(total / limit) };
   }
 
   async estadisticas() {
@@ -211,20 +216,31 @@ export class InscripcionesService {
     }
   }
 
-  async pagar(id: string, pagado: boolean, mesesAdelantados = 1) {
+  async pagar(id: string, pagado: boolean, mesesAdelantados = 1, periodos?: string[], motivo?: string) {
+    if (!pagado && (typeof motivo !== 'string' || !motivo.trim() || motivo.trim().length > 500)) {
+      throw new BadRequestException('Indicá el motivo de la anulación (hasta 500 caracteres)');
+    }
+    if (periodos !== undefined && (!Array.isArray(periodos) || periodos.length < 1 || periodos.length > 12 ||
+      new Set(periodos).size !== periodos.length || periodos.some(p => typeof p !== 'string' || !/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(p)))) {
+      throw new BadRequestException('Seleccioná entre 1 y 12 períodos distintos con formato AAAA-MM');
+    }
     const inscripcion = await this.prisma.inscripcionActividad.findUnique({ where: { id } });
     if (!inscripcion) throw new NotFoundException('Inscripción no encontrada');
 
     return this.prisma.$transaction(async (tx) => {
       const fechaPago = new Date();
+      // La cobertura elegida no cambia el estado vigente si no incluye el mes actual.
+      const incluyeActual = !periodos || periodos.includes(periodoArgentina(fechaPago));
       const updated = await tx.inscripcionActividad.update({
         where: { id },
-        data: { pagado, fechaPago: pagado ? fechaPago : null },
+        data: incluyeActual ? { pagado, fechaPago: pagado ? fechaPago : null } : {},
         include: { actividad: true },
       });
 
       if (pagado) {
-        const fechasPago = this.fechasPagoAdelantado(mesesAdelantados, fechaPago);
+        const fechasPago = periodos
+          ? periodos.map(p => new Date(p + '-01T12:00:00-03:00'))
+          : this.fechasPagoAdelantado(mesesAdelantados, fechaPago);
         await tx.pago.createMany({
           data: fechasPago.map((fecha, index) => ({
             alumnoId: inscripcion.alumnoId,
@@ -232,18 +248,15 @@ export class InscripcionesService {
             tipo: 'PAGO',
             fecha,
             registradoEn: fechaPago,
-            nota: fechasPago.length > 1 ? `Pago adelantado ${index + 1}/${fechasPago.length}` : null,
+            nota: periodos ? null : fechasPago.length > 1 ? `Pago adelantado ${index + 1}/${fechasPago.length}` : null,
           })),
         });
       } else {
-        await tx.pago.create({
-          data: {
-            alumnoId: inscripcion.alumnoId,
-            inscripcionId: id,
-            tipo: 'ANULACION',
-            fecha: fechaPago,
-            registradoEn: fechaPago,
-          },
+        await tx.pago.createMany({
+          data: (periodos ? periodos.map(p => new Date(p + '-01T12:00:00-03:00')) : [fechaPago]).map(fecha => ({
+            alumnoId: inscripcion.alumnoId, inscripcionId: id, tipo: 'ANULACION',
+            fecha, registradoEn: fechaPago, nota: motivo!.trim(),
+          })),
         });
       }
 
@@ -295,7 +308,7 @@ export class InscripcionesService {
     const inscripcion = await this.prisma.inscripcionActividad.findUnique({ where: { id } });
     if (!inscripcion) throw new NotFoundException('Inscripción no encontrada');
 
-    const clasesTotal = await this.clasesParaFrecuencia(frecuencia);
+    const clasesTotal = frecuencia === inscripcion.frecuencia ? inscripcion.clasesTotal : await this.clasesParaFrecuencia(frecuencia);
     const nuevasClasesUsadas = clasesUsadas ?? inscripcion.clasesUsadas;
 
     if (nuevasClasesUsadas > clasesTotal) {

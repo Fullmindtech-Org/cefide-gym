@@ -26,20 +26,20 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen flex">
-      <aside className="w-56 border-r border-cefide-border bg-cefide-surface flex flex-col">
+    <div className="min-h-screen flex flex-col md:flex-row">
+      <aside className="w-full md:w-56 md:shrink-0 border-b md:border-b-0 md:border-r border-cefide-border bg-cefide-surface flex flex-col">
         <div className="p-4 border-b border-cefide-border">
           <h1 className="text-xl font-bold text-cefide-accent">CEFIDE</h1>
           <p className="text-xs text-cefide-muted mt-1">Panel Admin</p>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
+        <nav className="flex gap-1 overflow-x-auto p-2 md:block md:flex-1 md:space-y-1">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
+                  'flex shrink-0 items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap transition-colors',
                   isActive
                     ? 'bg-cefide-accent/10 text-cefide-accent'
                     : 'text-cefide-muted hover:text-cefide-text hover:bg-cefide-bg',
@@ -51,13 +51,13 @@ export function AdminLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="p-4 border-t border-cefide-border">
-          <p className="text-xs text-cefide-muted truncate mb-2">{usuario?.email}</p>
-          <Button variant="ghost" size="sm" className="w-full justify-start" onClick={handleLogout}>
+        <div className="p-2 md:p-4 border-t border-cefide-border flex items-center justify-between md:block">
+          <p className="text-xs text-cefide-muted truncate md:mb-2">{usuario?.email}</p>
+          <Button variant="ghost" size="sm" className="md:w-full justify-start" onClick={handleLogout}>
             <LogOut className="mr-2 h-4 w-4" />
             Salir
           </Button>
-          <p className="text-[11px] text-cefide-muted mt-3">
+          <p className="hidden md:block text-[11px] text-cefide-muted mt-3">
             Desarrollado por{' '}
             <a
               href="https://fullmindtech.com.ar/"
@@ -72,7 +72,7 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="min-w-0 flex-1 p-4 md:p-6 overflow-auto">
         <Outlet />
       </main>
     </div>
