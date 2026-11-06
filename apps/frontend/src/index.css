@@ -7,3 +7,25 @@
 body {
   min-height: 100vh;
 }
+
+/* Inputs de fecha/mes: tema oscuro para que el ícono del calendario sea visible y fácil de presionar */
+input[type='month'],
+input[type='date'] {
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+input[type='month']::-webkit-calendar-picker-indicator,
+input[type='date']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  opacity: 1;
+}
+
+input[type='month']::-webkit-calendar-picker-indicator:hover,
+input[type='date']::-webkit-calendar-picker-indicator:hover {
+  background-color: #2a2a2a;
+}

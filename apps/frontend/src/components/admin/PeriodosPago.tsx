@@ -19,7 +19,8 @@ export function PeriodosPago({ periodos, onChange, disabled }: {
     </div>
     <div className="flex gap-2">
       <Input type="month" aria-label="Mes y año del período" value={nuevo}
-        min="1000-01" max="9999-12" disabled={disabled} onChange={e => setNuevo(e.target.value)} />
+        min="1000-01" max="9999-12" disabled={disabled} onChange={e => setNuevo(e.target.value)}
+        onClick={e => { try { e.currentTarget.showPicker?.(); } catch { /* navegador sin soporte */ } }} />
       <Button variant="outline" disabled={disabled || !valido || periodos.includes(nuevo) || periodos.length >= 12}
         onClick={() => onChange([...periodos, nuevo].sort())}>Agregar</Button>
     </div>

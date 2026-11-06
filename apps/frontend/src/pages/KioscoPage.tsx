@@ -219,7 +219,7 @@ export function KioscoPage() {
     seleccion: 'bg-cefide-bg',
     loading_validar: 'bg-cefide-bg',
     VERDE: 'bg-cefide-success',
-    AMARILLO: 'bg-cefide-warning',
+    AMARILLO: 'bg-cefide-success',
     ROJO: 'bg-cefide-accent-alt',
     error: 'bg-cefide-accent-alt',
   }[estado];
